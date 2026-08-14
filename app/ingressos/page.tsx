@@ -119,6 +119,9 @@ export default function IngressosPage() {
               ) : t.token ? (
                 <TicketQR token={t.token} />
               ) : null}
+              <Link href={`/t/${t.ticket_id}`} className="mt-3 block text-center text-sm text-primary">
+                Prova de propriedade / compartilhar
+              </Link>
             </article>
           ))}
         </div>

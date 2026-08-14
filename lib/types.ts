@@ -72,6 +72,22 @@ export type PublicConfig = {
   hold_ttl_seconds: number
 }
 
+export type TokenState = {
+  lifecycle: string
+  chain: string
+  custody: string
+  transferable_after?: string
+  disputed: boolean
+}
+
+export type TokenAttribute = { trait_type?: string; value?: string | number }
+
+export type TokenMetadata = {
+  name: string
+  description?: string
+  attributes?: TokenAttribute[]
+}
+
 export type MyTicket = {
   event_id: string
   event_title: string

@@ -6,6 +6,7 @@ import { CalendarDays, LogOut, Ticket, WifiOff } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { Button } from '@/components/ui/button'
 import { TicketQR } from '@/components/ticket-qr'
+import { TicketActions } from '@/components/ticket-actions'
 import { fetchMyTickets, logout } from '@/lib/client'
 import { formatDateTime } from '@/lib/format'
 import type { MyTicket } from '@/lib/types'
@@ -22,6 +23,20 @@ export default function IngressosPage() {
   useEffect(() => {
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {})
   }, [])
+
+  function reload() {
+    fetchMyTickets()
+      .then(({ authed, tickets }) => {
+        setAuthed(authed)
+        if (authed) {
+          setTickets(tickets)
+          try {
+            localStorage.setItem(CACHE_KEY, JSON.stringify(tickets))
+          } catch {}
+        }
+      })
+      .catch(() => {})
+  }
 
   useEffect(() => {
     let alive = true
@@ -122,6 +137,7 @@ export default function IngressosPage() {
               <Link href={`/t/${t.ticket_id}`} className="mt-3 block text-center text-sm text-primary">
                 Prova de propriedade / compartilhar
               </Link>
+              {t.status === 'active' && <TicketActions ticketId={t.ticket_id} onChanged={reload} />}
             </article>
           ))}
         </div>

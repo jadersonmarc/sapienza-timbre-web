@@ -76,6 +76,25 @@ export async function fetchMyTickets() {
   return { authed: true, tickets: body.tickets ?? [] }
 }
 
+// ── posse do ingresso (Onda 2) ──────────────────────────────────────────────────
+export async function transferTicket(ticketId: string, toEmail: string) {
+  const res = await fetch(`/api/me/tickets/${ticketId}/transfer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to_email: toEmail }),
+  })
+  return { ok: res.ok, status: res.status, data: await j(res) }
+}
+
+export async function sellTicket(ticketId: string, priceCents: number) {
+  const res = await fetch(`/api/me/tickets/${ticketId}/listings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ price_cents: priceCents }),
+  })
+  return { ok: res.ok, status: res.status, data: await j(res) }
+}
+
 // ── lista de espera ────────────────────────────────────────────────────────────
 export async function joinWaitlist(eventId: string, email: string) {
   const res = await fetch(`/api/events/${eventId}/waitlist`, {

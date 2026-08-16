@@ -31,6 +31,23 @@ export async function startCheckout(body: CheckoutBody) {
   return { ok: res.ok, status: res.status, data: await j(res) }
 }
 
+export type Breakdown = {
+  face_cents: number
+  platform_fee_cents: number
+  processing_cents: number
+  convenience_fee_cents: number
+  total_cents: number
+}
+
+export async function quote(body: CheckoutBody): Promise<Breakdown | null> {
+  const res = await fetch('/api/checkout/quote', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return res.ok ? j(res) : null
+}
+
 export async function checkoutStatus(orderId: string): Promise<{ status: string }> {
   const res = await fetch(`/api/checkout/${orderId}/status`)
   return res.ok ? j(res) : { status: 'unknown' }

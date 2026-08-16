@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Minus, Plus, Ticket, TriangleAlert } from 'lucide-react'
 import type { PublicConfig, PublicEventDetail } from '@/lib/types'
 import { brl } from '@/lib/format'
-import { startCheckout, fetchOccupancy, type CheckoutBody } from '@/lib/client'
+import { startCheckout, fetchOccupancy, quote, type CheckoutBody, type Breakdown } from '@/lib/client'
 import { SeatMap } from './seat-map'
 import { PixWait } from './pix-wait'
 import { HoldTimer } from './hold-timer'
@@ -50,6 +50,7 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [order, setOrder] = useState<{ id: string; pix?: string }>()
+  const [bd, setBd] = useState<Breakdown | null>(null)
 
   // Ocupação viva (seated): busca ao montar e atualiza periodicamente (volátil §4.2).
   useEffect(() => {
@@ -89,6 +90,28 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
       next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
+
+  // Cotação: decomposição face + conveniência, recalculada quando muda seleção/método/
+  // cupom/meia (§4.3). Debounce para não bater a API a cada tecla.
+  useEffect(() => {
+    if (qty < 1) {
+      setBd(null)
+      return
+    }
+    const body: CheckoutBody = {
+      event_id: detail.event.id,
+      quantity: qty,
+      method,
+      half_price_qty: halfQty || undefined,
+      coupon_code: coupon || undefined,
+      seat_ids: seated ? [...selected] : undefined,
+    }
+    const id = setTimeout(() => {
+      quote(body).then((b) => setBd(b))
+    }, 300)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qty, method, halfQty, coupon, seated, detail.event.id, [...selected].join(',')])
 
   const soldOut = !currentLot
   const available = currentLot?.available ?? 0
@@ -262,9 +285,21 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
         <p className="mt-3 rounded-lg bg-destructive/10 p-2 text-sm text-destructive">{error}</p>
       )}
 
-      <div className="mt-4 flex items-center justify-between">
-        <span className="text-sm text-muted-foreground">Total</span>
-        <span className="font-display text-xl font-bold">{brl(total)}</span>
+      {/* Decomposição visível ANTES de confirmar (§4.3) — recalcula ao trocar o método. */}
+      <div className="mt-4 space-y-1.5 border-t border-border pt-3 text-sm">
+        <div className="flex justify-between text-muted-foreground">
+          <span>Ingresso{qty > 1 ? ` (${qty}×)` : ''}</span>
+          <span>{brl(bd ? bd.face_cents : total)}</span>
+        </div>
+        <div className="flex justify-between text-muted-foreground">
+          <span>Taxa de conveniência</span>
+          <span>{brl(bd ? bd.convenience_fee_cents : 0)}</span>
+        </div>
+        <div className="flex items-baseline justify-between pt-1">
+          <span className="font-medium">Total</span>
+          <span className="font-display text-xl font-bold">{brl(bd ? bd.total_cents : total)}</span>
+        </div>
+        <p className="text-xs text-muted-foreground">A taxa de conveniência varia conforme o meio de pagamento.</p>
       </div>
       <Button size="lg" className="mt-3 w-full" disabled={busy || qty < 1} onClick={submit}>
         {busy ? 'Processando…' : 'Comprar'}

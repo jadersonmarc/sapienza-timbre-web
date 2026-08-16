@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Send, Tag } from 'lucide-react'
+import { Send, Tag, RefreshCw } from 'lucide-react'
 import { Button } from './ui/button'
-import { transferTicket, sellTicket } from '@/lib/client'
+import { transferTicket, sellTicket, reissueTicket } from '@/lib/client'
 
 // Ações de posse (Onda 2, custódia de plataforma): transferir (presente) e vender (mercado
 // secundário). O que depende de rede fica fora — aqui é tudo on-platform.
@@ -23,6 +23,17 @@ export function TicketActions({ ticketId, onChanged }: { ticketId: string; onCha
       setMsg('Transferido! O ingresso saiu da sua conta.')
       onChanged()
     } else setMsg(status === 409 ? 'Ainda não é transferível (janela de contestação) ou em disputa.' : 'Não foi possível transferir.')
+  }
+
+  async function doReissue() {
+    setBusy(true)
+    setMsg('')
+    const { ok } = await reissueTicket(ticketId)
+    setBusy(false)
+    if (ok) {
+      setMsg('Novo QR gerado! O anterior deixou de valer.')
+      onChanged()
+    } else setMsg('Não foi possível gerar um novo QR agora.')
   }
 
   async function doSell() {
@@ -72,6 +83,10 @@ export function TicketActions({ ticketId, onChanged }: { ticketId: string; onCha
           </Button>
         </div>
       )}
+
+      <button onClick={doReissue} disabled={busy} className="mt-2 flex w-full items-center justify-center gap-1.5 py-2 text-xs text-muted-foreground">
+        <RefreshCw className="size-3.5" /> Perdi o acesso / gerar novo QR
+      </button>
 
       {msg && <p className="mt-2 text-center text-sm text-muted-foreground">{msg}</p>}
     </div>

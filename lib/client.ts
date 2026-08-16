@@ -112,6 +112,11 @@ export async function sellTicket(ticketId: string, priceCents: number) {
   return { ok: res.ok, status: res.status, data: await j(res) }
 }
 
+export async function reissueTicket(ticketId: string) {
+  const res = await fetch(`/api/me/tickets/${ticketId}/reissue`, { method: 'POST' })
+  return { ok: res.ok, status: res.status }
+}
+
 // ── lista de espera ────────────────────────────────────────────────────────────
 export async function joinWaitlist(eventId: string, email: string) {
   const res = await fetch(`/api/events/${eventId}/waitlist`, {

@@ -15,7 +15,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # O build tolera ausência de rede (fetches de SSR degradam para vazio).
 RUN pnpm build
 
-RUN pnpm install --frozen-lockfile --no-ignored-builds
+RUN pnpm config set only-built-dependencies sharp
+RUN pnpm install --frozen-lockfile
+
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0

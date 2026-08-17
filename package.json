@@ -27,10 +27,5 @@
     "@types/react-dom": "^19",
     "tailwindcss": "^4.2.0",
     "typescript": "^5"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "sharp"
-    ]
   }
 }

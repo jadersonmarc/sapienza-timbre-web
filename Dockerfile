@@ -15,7 +15,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # O build tolera ausência de rede (fetches de SSR degradam para vazio).
 RUN pnpm build
 
-FROM base AS runner
+RUN pnpm install --frozen-lockfile --no-ignored-builds
+#FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 RUN addgroup -g 1001 nodejs && adduser -S -u 1001 nextjs

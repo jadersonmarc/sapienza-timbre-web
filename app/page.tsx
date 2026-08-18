@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { ArrowRight, Search, Ticket, Store, Mic2 } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { EventCardLink } from '@/components/event-card'
+import { CatalogError } from '@/components/catalog-error'
 import { fetchEvents, fetchCategories } from '@/lib/api'
 import { categoryName } from '@/lib/format'
 
@@ -10,7 +11,8 @@ export const revalidate = 60
 // Home: três portas explícitas (quem sai, quem produz, quem é artista) + destaques + busca.
 export default async function HomePage() {
   const [events, categories] = await Promise.all([fetchEvents({ page: 1 }), fetchCategories()])
-  const highlights = events.slice(0, 6)
+  const highlights = events.data.slice(0, 6)
+  const catalogError = events.error || categories.error
 
   return (
     <>
@@ -48,12 +50,18 @@ export default async function HomePage() {
           <DoorCard href="/para-produtores" icon={<Mic2 className="size-5" />} title="Sou artista" desc="Venda os ingressos dos seus próprios shows." />
         </section>
 
+        {catalogError && (
+          <div className="mt-10">
+            <CatalogError />
+          </div>
+        )}
+
         {/* Categorias */}
-        {categories.length > 0 && (
+        {categories.data.length > 0 && (
           <section className="mt-10">
             <h2 className="mb-3 font-display text-xl font-semibold">Categorias</h2>
             <div className="flex flex-wrap gap-2">
-              {categories.map((c) => (
+              {categories.data.map((c) => (
                 <Link
                   key={c.slug}
                   href={`/eventos?category=${c.slug}`}
@@ -75,9 +83,11 @@ export default async function HomePage() {
             </Link>
           </div>
           {highlights.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border p-8 text-center text-muted-foreground">
-              Nenhum evento publicado ainda. Volte em breve.
-            </p>
+            catalogError ? null : (
+              <p className="rounded-xl border border-dashed border-border p-8 text-center text-muted-foreground">
+                Nenhum evento publicado ainda. Volte em breve.
+              </p>
+            )
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {highlights.map((e) => (

@@ -1,27 +1,18 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
-import { Ticket, Check, ShieldCheck, Smartphone, Wallet } from 'lucide-react'
+import { Check, ShieldCheck, Smartphone, Wallet } from 'lucide-react'
+import { SiteHeader } from '@/components/site-header'
 import { Button } from '@/components/ui/button'
 import { producerSignup } from '@/lib/client'
 
-// Landing B2B — tema CLARO forçado (.light), mais próxima do padrão Sapienza. CTA real:
-// cadastro público que cria produtor pendente de aprovação (§3.12). Sem tabela de preço
-// final (§3.13) — seção marcada como em construção.
+// Landing B2B — segue o tema global (escuro no público), com o mesmo chrome do resto do site.
+// CTA real: cadastro público que cria produtor pendente de aprovação (§3.12). Sem tabela de
+// preço final (§3.13) — seção marcada como em construção.
 export default function ParaProdutoresPage() {
   return (
-    <div className="light min-h-screen bg-background text-foreground">
-      <header className="border-b border-border">
-        <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4">
-          <Link href="/" className="flex items-center gap-2 font-display text-lg font-bold">
-            <Ticket className="size-5 text-primary" /> Timbre
-          </Link>
-          <a href="#cadastro" className="text-sm font-medium text-primary">
-            Começar
-          </a>
-        </div>
-      </header>
+    <div className="min-h-screen bg-background text-foreground">
+      <SiteHeader />
 
       <main className="mx-auto max-w-4xl px-4">
         <section className="py-16 text-center">

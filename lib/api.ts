@@ -3,11 +3,26 @@
 // não quebrar sem rede e para a página degradar graciosamente se a API estiver fora.
 import type { EventCard, PublicConfig, PublicEventDetail, TokenMetadata, TokenState } from './types'
 
-export const API_BASE = process.env.TIMBRE_API || 'https://timbre.sapienzalabs.com.br'
+const FALLBACK_API = 'https://timbre-api.sapienzalabs.com.br'
+
+// Configuração quebrada não pode virar "catálogo vazio" em silêncio. Em dev, avisa que
+// TIMBRE_API não está definida; o build (Dockerfile) não define a var e roda offline, então
+// segue tolerante. Os fetches abaixo distinguem erro de rede/HTTP (error: true) de vazio real.
+export const API_BASE = (() => {
+  const v = process.env.TIMBRE_API
+  if (!v && process.env.NODE_ENV !== 'production') {
+    console.warn(`[Timbre] TIMBRE_API não definida — usando fallback ${FALLBACK_API}. Defina em .env.local.`)
+  }
+  return v || FALLBACK_API
+})()
 
 // ISR: revalida o diretório/evento. Os dados voláteis (saldo/lote corrente) o cliente
 // busca em runtime — o SSR fica cacheável (§4.2).
 const REVALIDATE = 60
+
+// Resultado do catálogo: `error` sinaliza API fora/rede (≠ vazio real), para o UI não
+// mascarar falha como "não há eventos".
+export type Catalog<T> = { data: T; error: boolean }
 
 type SearchParams = {
   q?: string
@@ -18,7 +33,7 @@ type SearchParams = {
   page?: number
 }
 
-export async function fetchEvents(params: SearchParams = {}): Promise<EventCard[]> {
+export async function fetchEvents(params: SearchParams = {}): Promise<Catalog<EventCard[]>> {
   const qs = new URLSearchParams()
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined && v !== '') qs.set(k, String(v))
@@ -27,10 +42,10 @@ export async function fetchEvents(params: SearchParams = {}): Promise<EventCard[
     const res = await fetch(`${API_BASE}/api/v1/public/events?${qs.toString()}`, {
       next: { revalidate: REVALIDATE },
     })
-    if (!res.ok) return []
-    return (await res.json()).events ?? []
+    if (!res.ok) return { data: [], error: true }
+    return { data: (await res.json()).events ?? [], error: false }
   } catch {
-    return []
+    return { data: [], error: true }
   }
 }
 
@@ -46,15 +61,15 @@ export async function fetchEvent(id: string): Promise<PublicEventDetail | null> 
   }
 }
 
-export async function fetchCategories(): Promise<{ slug: string; count: number }[]> {
+export async function fetchCategories(): Promise<Catalog<{ slug: string; count: number }[]>> {
   try {
     const res = await fetch(`${API_BASE}/api/v1/public/categories`, {
       next: { revalidate: REVALIDATE },
     })
-    if (!res.ok) return []
-    return (await res.json()).categories ?? []
+    if (!res.ok) return { data: [], error: true }
+    return { data: (await res.json()).categories ?? [], error: false }
   } catch {
-    return []
+    return { data: [], error: true }
   }
 }
 

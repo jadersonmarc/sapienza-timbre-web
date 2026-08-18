@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Search } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { EventCardLink } from '@/components/event-card'
+import { CatalogError } from '@/components/catalog-error'
 import { fetchEvents, fetchCategories } from '@/lib/api'
 import { categoryName } from '@/lib/format'
 
@@ -22,6 +23,8 @@ export default async function EventosPage({ searchParams }: { searchParams: SP }
     fetchEvents({ q: sp.q, category: sp.category, city: sp.city, from: sp.from, to: sp.to, page }),
     fetchCategories(),
   ])
+  const catalogError = events.error || categories.error
+  const list = events.data
 
   return (
     <>
@@ -38,7 +41,7 @@ export default async function EventosPage({ searchParams }: { searchParams: SP }
           <select name="category" defaultValue={sp.category ?? ''} aria-label="Categoria"
             className="h-11 rounded-xl border border-border bg-card px-3 text-sm">
             <option value="">Todas categorias</option>
-            {categories.map((c) => (
+            {categories.data.map((c) => (
               <option key={c.slug} value={c.slug}>{categoryName(c.slug)}</option>
             ))}
           </select>
@@ -50,27 +53,29 @@ export default async function EventosPage({ searchParams }: { searchParams: SP }
         </form>
 
         <div className="mt-8">
-          {events.length === 0 ? (
+          {catalogError ? (
+            <CatalogError />
+          ) : list.length === 0 ? (
             <p className="rounded-xl border border-dashed border-border p-10 text-center text-muted-foreground">
               Nenhum evento encontrado. Ajuste os filtros.
             </p>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {events.map((e) => (
+              {list.map((e) => (
                 <EventCardLink key={e.event_id} event={e} />
               ))}
             </div>
           )}
         </div>
 
-        {(page > 1 || events.length >= 24) && (
+        {(page > 1 || list.length >= 24) && (
           <nav className="mt-8 flex items-center justify-between">
             {page > 1 ? (
               <Link href={pageHref(sp, page - 1)} className="rounded-lg border border-border px-4 py-2 text-sm">
                 ← Anterior
               </Link>
             ) : <span />}
-            {events.length >= 24 && (
+            {list.length >= 24 && (
               <Link href={pageHref(sp, page + 1)} className="rounded-lg border border-border px-4 py-2 text-sm">
                 Próxima →
               </Link>

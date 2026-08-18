@@ -18,7 +18,7 @@ gerenciam a sessão em cookie httpOnly (§4.1). CSP com nonce em `middleware.ts`
 
 ```bash
 pnpm install
-TIMBRE_API=https://timbre.sapienzalabs.com.br pnpm dev   # http://localhost:3000
+TIMBRE_API=https://timbre-api.sapienzalabs.com.br pnpm dev   # http://localhost:3000
 pnpm build && pnpm start
 ```
 
@@ -27,7 +27,7 @@ Variável: `TIMBRE_API` (URL do backend Go). Ver `.env.example`.
 ## Deploy (Coolify)
 Build por `Dockerfile` (Next standalone, runtime Node). Defina `TIMBRE_API` no serviço e um
 **limite de recurso** para o SSR não competir com o checkout do backend na abertura de lote
-(§4.2). Ícones PWA (`public/icon-192.png`, `icon-512.png`) e favicon a adicionar.
+(§4.2). Ícones PWA (`public/icon-192.png`, `icon-512.png`) e favicon (`app/icon.svg`) presentes.
 
 ## Design
 Tokens/tipografia extraídos de `../spa-sapienza` (mesma família). **Escuro é o padrão no

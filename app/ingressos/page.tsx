@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { CalendarDays, LogOut, Ticket, WifiOff } from 'lucide-react'
+import { CalendarDays, LogOut, Ticket, WifiOff, RefreshCw } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { Button } from '@/components/ui/button'
 import { TicketQR } from '@/components/ticket-qr'
@@ -19,6 +19,7 @@ export default function IngressosPage() {
   const [tickets, setTickets] = useState<MyTicket[] | null>(null)
   const [authed, setAuthed] = useState<boolean | null>(null)
   const [offline, setOffline] = useState(false)
+  const [lastSync, setLastSync] = useState<Date | null>(null)
 
   useEffect(() => {
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {})
@@ -30,6 +31,8 @@ export default function IngressosPage() {
         setAuthed(authed)
         if (authed) {
           setTickets(tickets)
+          setOffline(false)
+          setLastSync(new Date())
           try {
             localStorage.setItem(CACHE_KEY, JSON.stringify(tickets))
           } catch {}
@@ -46,6 +49,7 @@ export default function IngressosPage() {
         setAuthed(authed)
         if (authed) {
           setTickets(tickets)
+          setLastSync(new Date())
           try {
             localStorage.setItem(CACHE_KEY, JSON.stringify(tickets))
           } catch {}
@@ -84,12 +88,25 @@ export default function IngressosPage() {
       <main className="mx-auto max-w-md px-4 pb-20 pt-8">
         <div className="flex items-center justify-between">
           <h1 className="font-display text-2xl font-bold">Meus ingressos</h1>
-          {authed && (
-            <button onClick={doLogout} className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <LogOut className="size-4" /> Sair
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {authed && (
+              <button onClick={reload} className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <RefreshCw className="size-4" /> Atualizar
+              </button>
+            )}
+            {authed && (
+              <button onClick={doLogout} className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <LogOut className="size-4" /> Sair
+              </button>
+            )}
+          </div>
         </div>
+
+        {authed && lastSync && !offline && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Sincronizado às {lastSync.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+          </p>
+        )}
 
         {offline && (
           <p className="mt-3 flex items-center gap-2 rounded-lg bg-secondary p-2 text-sm text-muted-foreground">
@@ -102,10 +119,18 @@ export default function IngressosPage() {
         {authed === false && (
           <div className="mt-10 rounded-2xl border border-dashed border-border p-8 text-center">
             <Ticket className="mx-auto size-8 text-muted-foreground" />
-            <p className="mt-3 text-sm text-muted-foreground">Entre para ver os ingressos que você comprou.</p>
-            <Link href="/conta" className="mt-4 block">
-              <Button className="w-full">Entrar</Button>
-            </Link>
+            <h2 className="mt-3 font-display font-semibold">Seus ingressos ficam aqui</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Comprou como convidado? Entre com o e-mail usado na compra e o ingresso aparece aqui.
+            </p>
+            <div className="mt-5 space-y-2">
+              <Link href="/conta" className="block">
+                <Button className="w-full">Entrar com e-mail</Button>
+              </Link>
+              <Link href="/eventos" className="block">
+                <Button variant="outline" className="w-full">Ver eventos</Button>
+              </Link>
+            </div>
           </div>
         )}
 

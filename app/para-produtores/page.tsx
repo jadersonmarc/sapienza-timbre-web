@@ -8,7 +8,7 @@ import { producerSignup } from '@/lib/client'
 
 // Landing B2B — segue o tema global (escuro no público), com o mesmo chrome do resto do site.
 // CTA real: cadastro público que cria produtor pendente de aprovação (§3.12). Sem tabela de
-// preço final (§3.13) — seção marcada como em construção.
+// preço inventada (§3.13) — seção de "fale com vendas" que qualifica antes de fechar contrato.
 export default function ParaProdutoresPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -34,16 +34,37 @@ export default function ParaProdutoresPage() {
           <Feature icon={<ShieldCheck className="size-5" />} title="Ingresso seguro" desc="Cada ingresso é assinado e verificável — sem fraude." />
         </section>
 
-        {/* Preço — BLOQUEADO (§3.13). Não inventar número. */}
+        {/* Condições comerciais — sem inventar número (§3.13). Benefícios operacionais +
+            qualificação: as taxas fecham por contrato, após a aprovação. */}
         <section className="mt-16">
-          <h2 className="font-display text-2xl font-bold">Planos e taxas</h2>
-          <div className="mt-4 rounded-2xl border border-dashed border-border p-8 text-center text-muted-foreground">
-            <p className="font-medium">Tabela em construção</p>
-            <p className="mt-1 text-sm">
-              Estamos finalizando as condições comerciais. Cadastre-se e falamos com você com os
-              valores antes de qualquer cobrança.
-            </p>
+          <h2 className="font-display text-2xl font-bold">Sem mensalidade, sem letra miúda.</h2>
+          <div className="mt-4 grid gap-4 sm:grid-cols-3">
+            <div className="rounded-2xl border border-border bg-card p-5">
+              <p className="font-display font-semibold">Só paga quando vende</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Nada de assinatura. A taxa entra por ingresso vendido.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border bg-card p-5">
+              <p className="font-display font-semibold">Taxa transparente</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Combinada na aprovação, sob medida para o seu evento.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border bg-card p-5">
+              <p className="font-display font-semibold">Repasse rápido</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Acompanhe vendas e repasses em tempo real no painel.
+              </p>
+            </div>
           </div>
+          <p className="mt-4 text-sm text-muted-foreground">
+            As condições fecham por contrato, antes de qualquer cobrança. Fale com a gente e
+            montamos a sua bilheteria.
+          </p>
+          <a href="#cadastro" className="mt-4 inline-block">
+            <Button variant="outline">Falar com vendas</Button>
+          </a>
         </section>
 
         {/* Cadastro */}

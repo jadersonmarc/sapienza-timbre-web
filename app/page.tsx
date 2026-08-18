@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowRight, Search, Ticket, Store, Mic2 } from 'lucide-react'
+import { ArrowRight, Search, Ticket, Store, Mic2, MapPin } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { EventCardLink } from '@/components/event-card'
 import { CatalogError } from '@/components/catalog-error'
@@ -8,11 +8,23 @@ import { categoryName } from '@/lib/format'
 
 export const revalidate = 60
 
-// Home: três portas explícitas (quem sai, quem produz, quem é artista) + destaques + busca.
+// Home: três portas explícitas (quem sai, quem produz, quem é artista) + próximos eventos +
+// busca + cidades. Quando o catálogo está vazio (sem erro), mostra uma experiência
+// deliberada de "casa abrindo" com CTA para produtores — não um texto seco.
 export default async function HomePage() {
   const [events, categories] = await Promise.all([fetchEvents({ page: 1 }), fetchCategories()])
-  const highlights = events.data.slice(0, 6)
+  const list = events.data
   const catalogError = events.error || categories.error
+
+  // Próximos: só datas futuras, ordenadas da mais próxima. Sem futuro → cai para destaque.
+  const now = Date.now()
+  const upcoming = list
+    .filter((e) => e.starts_at && new Date(e.starts_at).getTime() >= now)
+    .sort((a, b) => new Date(a.starts_at!).getTime() - new Date(b.starts_at!).getTime())
+    .slice(0, 6)
+  const showItems = upcoming.length > 0 ? upcoming : list.slice(0, 6)
+  const sectionTitle = upcoming.length > 0 ? 'Próximos eventos' : 'Em destaque'
+  const cities = [...new Set(list.map((e) => e.city).filter((c): c is string => !!c))].slice(0, 8)
 
   return (
     <>
@@ -74,28 +86,67 @@ export default async function HomePage() {
           </section>
         )}
 
-        {/* Destaques */}
-        <section className="mt-10">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-display text-xl font-semibold">Em destaque</h2>
-            <Link href="/eventos" className="flex items-center gap-1 text-sm text-primary">
-              Ver tudo <ArrowRight className="size-4" />
-            </Link>
-          </div>
-          {highlights.length === 0 ? (
-            catalogError ? null : (
-              <p className="rounded-xl border border-dashed border-border p-8 text-center text-muted-foreground">
-                Nenhum evento publicado ainda. Volte em breve.
-              </p>
-            )
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {highlights.map((e) => (
-                <EventCardLink key={e.event_id} event={e} />
-              ))}
+        {/* Catálogo: próximos/destaques quando há eventos; abertura deliberada quando vazio. */}
+        {list.length === 0 && !catalogError ? (
+          <section className="mt-10 rounded-2xl border border-dashed border-border p-10 text-center">
+            <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-secondary text-primary">
+              <Ticket className="size-6" />
             </div>
-          )}
-        </section>
+            <h2 className="mt-4 font-display text-xl font-semibold">A casa está abrindo.</h2>
+            <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+              Estamos preparando a primeira programação. Em breve: shows, festas, teatro e mais —
+              com ingresso em poucos toques, direto no celular.
+            </p>
+            <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
+              <Link
+                href="/para-produtores"
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-primary px-5 text-sm font-medium text-primary-foreground"
+              >
+                Quero produzir eventos
+              </Link>
+              <Link
+                href="/eventos"
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-border px-5 text-sm hover:bg-secondary"
+              >
+                Ver catálogo
+              </Link>
+            </div>
+          </section>
+        ) : (
+          <>
+            <section className="mt-10">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="font-display text-xl font-semibold">{sectionTitle}</h2>
+                <Link href="/eventos" className="flex items-center gap-1 text-sm text-primary">
+                  Ver tudo <ArrowRight className="size-4" />
+                </Link>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {showItems.map((e) => (
+                  <EventCardLink key={e.event_id} event={e} />
+                ))}
+              </div>
+            </section>
+
+            {cities.length > 0 && (
+              <section className="mt-10">
+                <h2 className="mb-3 font-display text-xl font-semibold">Por cidade</h2>
+                <div className="flex flex-wrap gap-2">
+                  {cities.map((city) => (
+                    <Link
+                      key={city}
+                      href={`/eventos?city=${encodeURIComponent(city)}`}
+                      className="flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-sm hover:bg-secondary"
+                    >
+                      <MapPin className="size-3.5 text-muted-foreground" />
+                      {city}
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+          </>
+        )}
       </main>
     </>
   )

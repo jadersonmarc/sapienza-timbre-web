@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Minus, Plus, Ticket, TriangleAlert } from 'lucide-react'
+import { Minus, Plus, Ticket, TriangleAlert, BadgePercent } from 'lucide-react'
 import type { PublicConfig, PublicEventDetail } from '@/lib/types'
 import { brl } from '@/lib/format'
 import { startCheckout, fetchOccupancy, quote, type CheckoutBody, type Breakdown } from '@/lib/client'
 import { SeatMap } from './seat-map'
 import { PixWait } from './pix-wait'
+import { CardWait } from './card-wait'
 import { HoldTimer } from './hold-timer'
 import { Button } from './ui/button'
 
@@ -51,6 +52,7 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
   const [error, setError] = useState('')
   const [order, setOrder] = useState<{ id: string; pix?: string }>()
   const [bd, setBd] = useState<Breakdown | null>(null)
+  const [quoteState, setQuoteState] = useState<'idle' | 'ok' | 'error'>('idle')
 
   // Ocupação viva (seated): busca ao montar e atualiza periodicamente (volátil §4.2).
   useEffect(() => {
@@ -96,6 +98,7 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
   useEffect(() => {
     if (qty < 1) {
       setBd(null)
+      setQuoteState('idle')
       return
     }
     const body: CheckoutBody = {
@@ -107,13 +110,26 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
       seat_ids: seated ? [...selected] : undefined,
     }
     const id = setTimeout(() => {
-      quote(body).then((b) => setBd(b))
+      quote(body).then(({ ok, breakdown }) => {
+        setBd(breakdown)
+        setQuoteState(ok ? 'ok' : 'error')
+      })
     }, 300)
     return () => clearTimeout(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qty, method, halfQty, coupon, seated, detail.event.id, [...selected].join(',')])
 
-  const soldOut = !currentLot
+  // Cupom: feedback explícito (aplicado/inválido) em vez de falha silenciosa (§4.3).
+  const couponMsg = !coupon.trim()
+    ? null
+    : quoteState === 'idle'
+      ? null
+      : quoteState === 'ok'
+        ? { tone: 'ok' as const, text: 'Cupom aplicado.' }
+        : { tone: 'error' as const, text: 'Cupom inválido ou expirado.' }
+  const quoteError = quoteState === 'error' && !coupon.trim()
+
+  const soldOut = !currentLot || (currentLot?.available ?? 0) <= 0
   const available = currentLot?.available ?? 0
 
   async function submit() {
@@ -185,7 +201,7 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
     return (
       <Panel>
         <HoldTimer seconds={config.hold_ttl_seconds} />
-        <PixWait orderId={order.id} pixCode="" onPaid={() => setPhase('done')} />
+        <CardWait orderId={order.id} onPaid={() => setPhase('done')} />
       </Panel>
     )
   }
@@ -259,16 +275,33 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
         </label>
       )}
 
-      <input value={coupon} onChange={(e) => setCoupon(e.target.value)} placeholder="Cupom (opcional)"
-        className="mt-3 h-11 w-full rounded-lg border border-border bg-card px-3 text-sm" />
+      <label className="mt-3 block">
+        <span className="mb-1 block text-sm text-muted-foreground">Cupom (opcional)</span>
+        <input value={coupon} onChange={(e) => setCoupon(e.target.value)} placeholder="Ex.: TIMBRE10"
+          className="h-11 w-full rounded-lg border border-border bg-card px-3 text-sm" />
+        {couponMsg && (
+          <span className={`mt-1 flex items-center gap-1 text-xs ${couponMsg.tone === 'ok' ? 'text-primary' : 'text-destructive'}`}>
+            <BadgePercent className="size-3.5" /> {couponMsg.text}
+          </span>
+        )}
+      </label>
 
-      <div className="mt-4 space-y-2">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome" aria-label="Nome"
-          className="h-11 w-full rounded-lg border border-border bg-card px-3 text-sm" />
-        <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="E-mail" aria-label="E-mail" required
-          className="h-11 w-full rounded-lg border border-border bg-card px-3 text-sm" />
-        <input value={cpf} onChange={(e) => setCpf(e.target.value)} placeholder="CPF (para meia/nota)" aria-label="CPF"
-          className="h-11 w-full rounded-lg border border-border bg-card px-3 text-sm" />
+      <div className="mt-4 space-y-3">
+        <label className="block">
+          <span className="mb-1 block text-sm text-muted-foreground">Nome</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Seu nome"
+            className="h-11 w-full rounded-lg border border-border bg-card px-3 text-sm" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm text-muted-foreground">E-mail</span>
+          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="voce@email.com" required
+            className="h-11 w-full rounded-lg border border-border bg-card px-3 text-sm" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm text-muted-foreground">CPF (para meia/nota)</span>
+          <input value={cpf} onChange={(e) => setCpf(maskCpf(e.target.value))} inputMode="numeric" placeholder="000.000.000-00"
+            className="h-11 w-full rounded-lg border border-border bg-card px-3 text-sm" />
+        </label>
       </div>
 
       {/* Método (§3.11 — só o que o gateway aceita). */}
@@ -300,6 +333,11 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
           <span className="font-display text-xl font-bold">{brl(bd ? bd.total_cents : total)}</span>
         </div>
         <p className="text-xs text-muted-foreground">A taxa de conveniência varia conforme o meio de pagamento.</p>
+        {quoteError && (
+          <p className="text-xs text-signal">
+            Não conseguimos calcular as taxas agora — o valor final pode mudar no fechamento.
+          </p>
+        )}
       </div>
       <Button size="lg" className="mt-3 w-full" disabled={busy || qty < 1} onClick={submit}>
         {busy ? 'Processando…' : 'Comprar'}
@@ -313,4 +351,13 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
 
 function Panel({ children }: { children: React.ReactNode }) {
   return <div className="rounded-2xl border border-border bg-card p-5">{children}</div>
+}
+
+// Máscara de CPF (000.000.000-00) — melhora a legibilidade e reduz erro de digitação.
+function maskCpf(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 11)
+  return d
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
 }

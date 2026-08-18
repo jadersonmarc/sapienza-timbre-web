@@ -39,13 +39,14 @@ export type Breakdown = {
   total_cents: number
 }
 
-export async function quote(body: CheckoutBody): Promise<Breakdown | null> {
+export async function quote(body: CheckoutBody): Promise<{ ok: boolean; breakdown: Breakdown | null }> {
   const res = await fetch('/api/checkout/quote', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  return res.ok ? j(res) : null
+  if (!res.ok) return { ok: false, breakdown: null }
+  return { ok: true, breakdown: await j(res) }
 }
 
 export async function checkoutStatus(orderId: string): Promise<{ status: string }> {

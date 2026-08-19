@@ -1,0 +1,82 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { ChevronLeft } from 'lucide-react'
+import { ProducerNav } from '@/components/producer-nav'
+import { Button } from '@/components/ui/button'
+import { pget, ppost } from '@/lib/producer'
+import { categoryName } from '@/lib/format'
+
+export default function NovoEventoPage() {
+  const router = useRouter()
+  const [cats, setCats] = useState<{ slug: string }[]>([])
+  const [f, setF] = useState({ title: '', category: '', starts_at: '', city: '', cover_url: '', has_seat_map: false })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    pget('categories').then((r) => {
+      if (r.status === 401) return router.replace('/painel/entrar')
+      setCats(r.data.categories ?? [])
+    })
+  }, [router])
+
+  const set = (k: string, v: string | boolean) => setF((p) => ({ ...p, [k]: v }))
+
+  async function submit() {
+    setError('')
+    if (!f.title || !f.category || !f.starts_at) {
+      setError('Preencha título, categoria e data de início.')
+      return
+    }
+    setBusy(true)
+    const r = await ppost('events', {
+      title: f.title,
+      category: f.category,
+      starts_at: new Date(f.starts_at).toISOString(),
+      city: f.city || undefined,
+      cover_url: f.cover_url || undefined,
+      has_seat_map: f.has_seat_map,
+    })
+    setBusy(false)
+    if (r.ok) router.push(`/painel/eventos/${r.data.id}`)
+    else setError(r.data?.error || 'Não foi possível criar o evento.')
+  }
+
+  return (
+    <>
+      <ProducerNav />
+      <main className="mx-auto max-w-lg px-4 pb-20 pt-8">
+        <Link href="/painel" className="mb-4 flex items-center gap-1 text-sm text-muted-foreground">
+          <ChevronLeft className="size-4" /> Voltar
+        </Link>
+        <h1 className="font-display text-2xl font-bold">Novo evento</h1>
+        <div className="mt-6 space-y-3">
+          <Field label="Título"><input value={f.title} onChange={(e) => set('title', e.target.value)} className={inp} /></Field>
+          <Field label="Categoria">
+            <select value={f.category} onChange={(e) => set('category', e.target.value)} className={inp}>
+              <option value="">Selecione…</option>
+              {cats.map((c) => <option key={c.slug} value={c.slug}>{categoryName(c.slug)}</option>)}
+            </select>
+          </Field>
+          <Field label="Data e hora de início"><input type="datetime-local" value={f.starts_at} onChange={(e) => set('starts_at', e.target.value)} className={inp} /></Field>
+          <Field label="Cidade"><input value={f.city} onChange={(e) => set('city', e.target.value)} className={inp} /></Field>
+          <Field label="Imagem de capa (URL)"><input value={f.cover_url} onChange={(e) => set('cover_url', e.target.value)} placeholder="https://…" className={inp} /></Field>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={f.has_seat_map} onChange={(e) => set('has_seat_map', e.target.checked)} />
+            Evento com mapa de assentos (marcados)
+          </label>
+          {error && <p className="rounded-lg bg-destructive/10 p-2 text-sm text-destructive">{error}</p>}
+          <Button size="lg" className="w-full" disabled={busy} onClick={submit}>{busy ? 'Criando…' : 'Criar evento'}</Button>
+        </div>
+      </main>
+    </>
+  )
+}
+
+const inp = 'h-11 w-full rounded-lg border border-border bg-card px-3 text-sm'
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return <label className="block"><span className="mb-1 block text-sm text-muted-foreground">{label}</span>{children}</label>
+}

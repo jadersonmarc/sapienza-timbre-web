@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Check, ShieldCheck, Smartphone, Wallet } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { Button } from '@/components/ui/button'
@@ -23,9 +24,10 @@ export default function ParaProdutoresPage() {
             Venda ingressos com repasse rápido, portaria que funciona offline e ingressos que o
             público leva no celular. Sem letra miúda.
           </p>
-          <a href="#cadastro" className="mt-6 inline-block">
-            <Button size="lg">Criar minha conta de produtor</Button>
-          </a>
+          <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <a href="#cadastro"><Button size="lg">Criar minha conta de produtor</Button></a>
+            <Link href="/painel/entrar" className="text-sm text-primary">Já tenho conta · Entrar →</Link>
+          </div>
         </section>
 
         <section className="grid gap-4 sm:grid-cols-3">
@@ -120,7 +122,8 @@ function SignupForm() {
     return (
       <div className="mt-5 rounded-xl bg-primary/10 p-4 text-center text-sm">
         <Check className="mx-auto mb-2 size-6 text-primary" />
-        Cadastro recebido! Assim que aprovarmos, você recebe o acesso ao painel.
+        Cadastro recebido! Assim que aprovarmos, você já pode entrar no painel.
+        <Link href="/painel/entrar" className="mt-3 inline-block text-sm font-medium text-primary">Ir para o login →</Link>
       </div>
     )
   }

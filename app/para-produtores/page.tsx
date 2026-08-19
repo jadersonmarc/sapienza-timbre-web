@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Check, ShieldCheck, Smartphone, Wallet } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { Button } from '@/components/ui/button'
-import { producerSignup, DASH_URL } from '@/lib/client'
+import { producerSignup } from '@/lib/client'
 
 // Landing B2B — segue o tema global (escuro no público), com o mesmo chrome do resto do site.
 // CTA real: cadastro público que cria produtor pendente de aprovação (§3.12). Sem tabela de
@@ -23,14 +23,9 @@ export default function ParaProdutoresPage() {
             Venda ingressos com repasse rápido, portaria que funciona offline e ingressos que o
             público leva no celular. Sem letra miúda.
           </p>
-          <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <a href="#cadastro">
-              <Button size="lg">Criar minha conta de produtor</Button>
-            </a>
-            <a href={DASH_URL} className="text-sm text-primary">
-              Já tenho conta · Entrar no painel →
-            </a>
-          </div>
+          <a href="#cadastro" className="mt-6 inline-block">
+            <Button size="lg">Criar minha conta de produtor</Button>
+          </a>
         </section>
 
         <section className="grid gap-4 sm:grid-cols-3">
@@ -125,10 +120,7 @@ function SignupForm() {
     return (
       <div className="mt-5 rounded-xl bg-primary/10 p-4 text-center text-sm">
         <Check className="mx-auto mb-2 size-6 text-primary" />
-        Cadastro recebido! Assim que aprovarmos, você entra no painel para publicar seus eventos.
-        <a href={DASH_URL} className="mt-3 inline-block text-sm font-medium text-primary">
-          Ir para o painel →
-        </a>
+        Cadastro recebido! Assim que aprovarmos, você recebe o acesso ao painel.
       </div>
     )
   }

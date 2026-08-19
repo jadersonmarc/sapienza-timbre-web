@@ -8,8 +8,8 @@ import { Button } from '@/components/ui/button'
 import { producerSignup } from '@/lib/client'
 
 // Landing B2B — segue o tema global (escuro no público), com o mesmo chrome do resto do site.
-// CTA real: cadastro público que cria produtor pendente de aprovação (§3.12). Sem tabela de
-// preço inventada (§3.13) — seção de "fale com vendas" que qualifica antes de fechar contrato.
+// CTA real: cadastro público self-service — o produtor nasce ATIVO e já publica eventos.
+// Sem tabela de preço inventada (§3.13) — seção de "fale com vendas" que qualifica o contrato.
 export default function ParaProdutoresPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -37,7 +37,7 @@ export default function ParaProdutoresPage() {
         </section>
 
         {/* Condições comerciais — sem inventar número (§3.13). Benefícios operacionais +
-            qualificação: as taxas fecham por contrato, após a aprovação. */}
+            qualificação: as taxas fecham por contrato. */}
         <section className="mt-16">
           <h2 className="font-display text-2xl font-bold">Sem mensalidade, sem letra miúda.</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
@@ -50,7 +50,7 @@ export default function ParaProdutoresPage() {
             <div className="rounded-2xl border border-border bg-card p-5">
               <p className="font-display font-semibold">Taxa transparente</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Combinada na aprovação, sob medida para o seu evento.
+                Combinada por contrato, sob medida para o seu evento.
               </p>
             </div>
             <div className="rounded-2xl border border-border bg-card p-5">
@@ -74,7 +74,7 @@ export default function ParaProdutoresPage() {
           <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-6">
             <h2 className="font-display text-xl font-bold">Criar conta de produtor</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Sua conta entra em análise e é liberada após aprovação.
+              Sua conta já fica ativa — publique eventos na hora.
             </p>
             <SignupForm />
           </div>
@@ -122,7 +122,7 @@ function SignupForm() {
     return (
       <div className="mt-5 rounded-xl bg-primary/10 p-4 text-center text-sm">
         <Check className="mx-auto mb-2 size-6 text-primary" />
-        Cadastro recebido! Assim que aprovarmos, você já pode entrar no painel.
+        Conta criada! Entre no painel para publicar seus eventos.
         <Link href="/painel/entrar" className="mt-3 inline-block text-sm font-medium text-primary">Ir para o login →</Link>
       </div>
     )

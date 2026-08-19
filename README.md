@@ -14,6 +14,13 @@ pendente de aprovação).
 O navegador só fala com rotas-proxy same-origin (`app/api/*`), que encaminham ao Go e
 gerenciam a sessão em cookie httpOnly (§4.1). CSP com nonce em `middleware.ts`.
 
+## Painel administrativo (`/admin`)
+
+Além do site do comprador e do `/painel` do produtor, existe um painel de plataforma em
+`/admin` (auth JWT própria do Go, escopo "admin", papéis `admin`/`super_admin`), consumido
+via proxy `app/api/admin/[...path]`. Substituiu o `/dash` embutido (removido) do backend.
+Módulos: visão geral, produtores, artistas (catálogo global), eventos, moderação e relatórios.
+
 ## Rodar
 
 ```bash

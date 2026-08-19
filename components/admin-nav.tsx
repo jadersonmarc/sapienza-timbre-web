@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { Shield, LogOut } from 'lucide-react'
 import { adminLogout } from '@/lib/admin'
 import { cn } from '@/lib/utils'
+import { ThemeToggle } from './theme-toggle'
 
 const LINKS = [
   { href: '/admin', label: 'Visão geral' },
@@ -40,9 +41,12 @@ export function AdminNav() {
             </Link>
           ))}
         </nav>
-        <button onClick={out} className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <LogOut className="size-4" /> Sair
-        </button>
+        <div className="flex items-center gap-1">
+          <button onClick={out} className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <LogOut className="size-4" /> Sair
+          </button>
+          <ThemeToggle />
+        </div>
       </div>
     </header>
   )

@@ -18,14 +18,6 @@ export const metadata: Metadata = {
   applicationName: 'Timbre',
   manifest: '/manifest.webmanifest',
   appleWebApp: { capable: true, title: 'Timbre', statusBarStyle: 'black-translucent' },
-  // Favicon/ícone do title = identidade da Sapienza (assets copiados de spa-sapienza).
-  icons: {
-    icon: [
-      { url: '/icon-32.png', type: 'image/png', sizes: '32x32' },
-      { url: '/icon-192.png', type: 'image/png', sizes: '192x192' },
-    ],
-    apple: { url: '/apple-icon.png', sizes: '180x180' },
-  },
 }
 
 export const viewport: Viewport = {

@@ -17,6 +17,10 @@ export type CheckoutBody = {
   buyer_cpf?: string
 }
 
+// URL do painel do produtor (dash/portaria servidos pelo backend Go). Env do deploy.
+export const DASH_URL =
+  process.env.NEXT_PUBLIC_DASH_URL || 'https://timbre-api.sapienzalabs.com.br/dash'
+
 async function j(res: Response) {
   return res.json().catch(() => ({}))
 }

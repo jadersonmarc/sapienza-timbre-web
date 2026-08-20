@@ -97,4 +97,7 @@ export type MyTicket = {
   token?: string
   seat_label?: string
   status: string
+  // Estado de materialização on-chain. 'not_materialized' é NORMAL e permanente (não
+  // mostrar spinner/aviso/badge); 'pending' é transitório (mint em fila).
+  chain_status?: string
 }

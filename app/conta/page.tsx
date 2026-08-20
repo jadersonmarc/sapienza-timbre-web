@@ -9,8 +9,7 @@ import { requestCode, verifyCode } from '@/lib/client'
 
 const RESEND_SECONDS = 60
 
-// Conta do comprador por e-mail + código (OTP). Sem senha. O vínculo com compras de
-// convidado acontece no backend, só após a verificação (§3.4). Erro de rede é distinto de
+// Conta do comprador por e-mail + código (OTP). Sem senha. Erro de rede é distinto de
 // "não existe conta" (a resposta do envio é neutra), então só avançamos quando o código
 // realmente saiu; reenvio com espera e expiração visível.
 export default function ContaPage() {

@@ -2,7 +2,7 @@ import { cookies } from 'next/headers'
 import { API_BASE, SESSION_COOKIE, SESSION_MAX_AGE } from '@/lib/session'
 
 // Verifica o OTP no Go e, no sucesso, grava a sessão em cookie httpOnly (o token nunca
-// chega ao JS). O vínculo convidado→conta acontece no Go, só após esta verificação.
+// chega ao JS).
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}))
   const res = await fetch(`${API_BASE}/api/v1/public/auth/verify`, {

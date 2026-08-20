@@ -85,6 +85,14 @@ export async function logout() {
   await fetch('/api/auth/logout', { method: 'POST' })
 }
 
+// Sessão do comprador (compra exige cadastro). 401 = não autenticado.
+export async function fetchBuyerSession(): Promise<{ authed: boolean; email?: string }> {
+  const res = await fetch('/api/me')
+  if (!res.ok) return { authed: false }
+  const body = await j(res)
+  return { authed: true, email: body.email ?? undefined }
+}
+
 // ── meus ingressos ─────────────────────────────────────────────────────────────
 export async function fetchMyTickets() {
   const res = await fetch('/api/me/tickets')

@@ -5,11 +5,12 @@ import Link from 'next/link'
 import { Minus, Plus, Ticket, TriangleAlert, BadgePercent } from 'lucide-react'
 import type { PublicConfig, PublicEventDetail } from '@/lib/types'
 import { brl } from '@/lib/format'
-import { startCheckout, fetchOccupancy, quote, type CheckoutBody, type Breakdown } from '@/lib/client'
+import { startCheckout, fetchOccupancy, fetchBuyerSession, quote, type CheckoutBody, type Breakdown } from '@/lib/client'
 import { SeatMap } from './seat-map'
 import { PixWait } from './pix-wait'
 import { CardWait } from './card-wait'
 import { HoldTimer } from './hold-timer'
+import { BuyerLogin } from './buyer-login'
 import { Button } from './ui/button'
 
 type Phase = 'form' | 'pix' | 'done' | 'error'
@@ -57,6 +58,15 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
   const [order, setOrder] = useState<{ id: string; pix?: string }>()
   const [bd, setBd] = useState<Breakdown | null>(null)
   const [quoteState, setQuoteState] = useState<'idle' | 'ok' | 'error'>('idle')
+  const [authed, setAuthed] = useState<boolean | null>(null)
+
+  // Compra exige cadastro: descobre a sessão do comprador. O e-mail vem da conta.
+  useEffect(() => {
+    fetchBuyerSession().then((s) => {
+      setAuthed(s.authed)
+      if (s.email) setEmail(s.email)
+    })
+  }, [])
 
   // Ocupação viva (seated): busca ao montar e atualiza periodicamente (volátil §4.2).
   useEffect(() => {
@@ -138,10 +148,6 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
 
   async function submit() {
     setError('')
-    if (!email) {
-      setError('Informe seu e-mail para receber o ingresso.')
-      return
-    }
     if (qty < 1) {
       setError(seated ? 'Selecione ao menos um assento.' : 'Escolha a quantidade.')
       return
@@ -152,7 +158,6 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
       quantity: qty,
       method,
       buyer_name: name,
-      buyer_email: email,
       buyer_cpf: cpf || undefined,
       half_price_qty: halfQty || undefined,
       coupon_code: coupon || undefined,
@@ -172,6 +177,14 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
     }
     setOrder({ id: data.order_id, pix: data.pix_code })
     setPhase('pix')
+  }
+
+  // ── cadastro obrigatório ──
+  if (authed === null) {
+    return <Panel><p className="text-muted-foreground">Carregando…</p></Panel>
+  }
+  if (!authed) {
+    return <Panel><BuyerLogin onAuthed={() => setAuthed(true)} /></Panel>
   }
 
   // ── esgotado ──
@@ -297,11 +310,6 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
             className="h-11 w-full rounded-lg border border-border bg-card px-3 text-sm" />
         </label>
         <label className="block">
-          <span className="mb-1 block text-sm text-muted-foreground">E-mail</span>
-          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="voce@email.com" required
-            className="h-11 w-full rounded-lg border border-border bg-card px-3 text-sm" />
-        </label>
-        <label className="block">
           <span className="mb-1 block text-sm text-muted-foreground">CPF (para meia/nota)</span>
           <input value={cpf} onChange={(e) => setCpf(maskCpf(e.target.value))} inputMode="numeric" placeholder="000.000.000-00"
             className="h-11 w-full rounded-lg border border-border bg-card px-3 text-sm" />
@@ -347,7 +355,7 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
         {busy ? 'Processando…' : 'Comprar'}
       </Button>
       <p className="mt-2 text-center text-xs text-muted-foreground">
-        Sem cadastro. Você cria conta depois, se quiser.
+        {email ? `Comprando como ${email}.` : 'Sua conta é criada na hora, sem senha.'}
       </p>
     </Panel>
   )

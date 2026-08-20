@@ -121,7 +121,7 @@ export default function IngressosPage() {
             <Ticket className="mx-auto size-8 text-muted-foreground" />
             <h2 className="mt-3 font-display font-semibold">Seus ingressos ficam aqui</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Comprou como convidado? Entre com o e-mail usado na compra e o ingresso aparece aqui.
+              Entre com seu e-mail para ver seus ingressos.
             </p>
             <div className="mt-5 space-y-2">
               <Link href="/conta" className="block">

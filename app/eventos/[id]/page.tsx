@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { CalendarDays, MapPin, ShieldAlert, Info } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { CheckoutPanel } from '@/components/checkout-panel'
+import { TrustBadges } from '@/components/trust'
 import { fetchEvent, fetchConfig } from '@/lib/api'
 import { categoryName, formatDateTime } from '@/lib/format'
 
@@ -92,6 +93,10 @@ export default async function EventoPage({ params }: { params: Params }) {
                 {e.description}
               </div>
             )}
+
+            <div className="mt-6">
+              <TrustBadges />
+            </div>
 
             {e.cancellation_policy && (
               <div className="mt-6 rounded-xl border border-border p-4 text-sm">

@@ -3,6 +3,7 @@ import { ArrowRight, Search, Ticket, Store, Mic2, MapPin } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { EventCardLink } from '@/components/event-card'
 import { CatalogError } from '@/components/catalog-error'
+import { TrustSection } from '@/components/trust'
 import { fetchEvents, fetchCategories } from '@/lib/api'
 import { categoryName } from '@/lib/format'
 
@@ -61,6 +62,9 @@ export default async function HomePage() {
           <DoorCard href="/para-produtores" icon={<Store className="size-5" />} title="Produzo eventos" desc="Venda ingressos e gerencie sua bilheteria." />
           <DoorCard href="/para-produtores" icon={<Mic2 className="size-5" />} title="Sou artista" desc="Venda os ingressos dos seus próprios shows." />
         </section>
+
+        {/* Diferenciais do ingresso (honesto: assinatura offline + transferência/revenda) */}
+        <TrustSection />
 
         {catalogError && (
           <div className="mt-10">

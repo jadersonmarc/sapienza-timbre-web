@@ -5,11 +5,12 @@ Router, React 19, Tailwind v4, next-themes) que consome a API pública do backen
 (`sapienza-timbre`). Repo separado; deploy no **Coolify** (mesma VPS do backend).
 
 ## Onda 1 — o que existe
-Home (3 portas), diretório com busca/filtros (SSR+ISR), página do evento (SSR+ISR, **OG
-dinâmico**, JSON-LD, mapa de assentos), checkout (Pix com espera ativa, hold visível,
-meia-entrada, cupom), conta por **e-mail + OTP** (sessão em cookie httpOnly), **meus
-ingressos** (PWA com QR em cache offline), lista de espera e landing do produtor (cadastro
-pendente de aprovação).
+Home (3 portas + seção de diferenciais do ingresso), diretório com busca/filtros (SSR+ISR),
+página do evento (SSR+ISR, **OG dinâmico**, JSON-LD, mapa de assentos, indicadores de
+confiança), checkout (Pix com espera ativa, hold visível, meia-entrada, cupom — **exige
+cadastro**, login por e-mail + OTP embutido), conta por **e-mail + OTP** (sessão em cookie
+httpOnly), **meus ingressos** (PWA com QR em cache offline), lista de espera e landing do
+produtor (cadastro self-service).
 
 O navegador só fala com rotas-proxy same-origin (`app/api/*`), que encaminham ao Go e
 gerenciam a sessão em cookie httpOnly (§4.1). CSP com nonce em `middleware.ts`.

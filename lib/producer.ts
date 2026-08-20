@@ -35,3 +35,11 @@ export async function psend(method: string, path: string, body?: unknown) {
 }
 export const ppost = (path: string, body?: unknown) => psend('POST', path, body)
 export const ppatch = (path: string, body?: unknown) => psend('PATCH', path, body)
+
+// Upload da capa (multipart) — passa pela rota dedicada app/api/producer/events/[id]/cover.
+export async function uploadCover(id: string, file: File) {
+  const fd = new FormData()
+  fd.append('file', file)
+  const res = await fetch(`/api/producer/events/${id}/cover`, { method: 'POST', body: fd })
+  return { ok: res.ok, status: res.status, data: await j(res) }
+}

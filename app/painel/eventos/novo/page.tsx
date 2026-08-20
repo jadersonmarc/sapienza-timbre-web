@@ -6,13 +6,14 @@ import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { ProducerNav } from '@/components/producer-nav'
 import { Button } from '@/components/ui/button'
-import { pget, ppost } from '@/lib/producer'
+import { pget, ppost, uploadCover } from '@/lib/producer'
 import { categoryName } from '@/lib/format'
 
 export default function NovoEventoPage() {
   const router = useRouter()
   const [cats, setCats] = useState<{ slug: string }[]>([])
   const [f, setF] = useState({ title: '', category: '', starts_at: '', city: '', cover_url: '', has_seat_map: false })
+  const [coverFile, setCoverFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -40,9 +41,14 @@ export default function NovoEventoPage() {
       cover_url: f.cover_url || undefined,
       has_seat_map: f.has_seat_map,
     })
+    if (r.ok) {
+      // Capa é opcional: se o produtor escolheu um arquivo, sobe depois de criar o evento.
+      if (coverFile) await uploadCover(r.data.id, coverFile)
+      router.push(`/painel/eventos/${r.data.id}`)
+      return
+    }
     setBusy(false)
-    if (r.ok) router.push(`/painel/eventos/${r.data.id}`)
-    else setError(r.data?.error || 'Não foi possível criar o evento.')
+    setError(r.data?.error || 'Não foi possível criar o evento.')
   }
 
   return (
@@ -63,7 +69,14 @@ export default function NovoEventoPage() {
           </Field>
           <Field label="Data e hora de início"><input type="datetime-local" value={f.starts_at} onChange={(e) => set('starts_at', e.target.value)} className={inp} /></Field>
           <Field label="Cidade"><input value={f.city} onChange={(e) => set('city', e.target.value)} className={inp} /></Field>
-          <Field label="Imagem de capa (URL)"><input value={f.cover_url} onChange={(e) => set('cover_url', e.target.value)} placeholder="https://…" className={inp} /></Field>
+          <Field label="Imagem de capa (opcional)">
+            <input type="file" accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => setCoverFile(e.target.files?.[0] ?? null)} className={`${inp} h-auto py-2 file:mr-3 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5`} />
+            {coverFile && <span className="mt-1 block text-xs text-muted-foreground">{coverFile.name}</span>}
+          </Field>
+          <Field label="…ou cole uma URL de imagem (opcional)">
+            <input value={f.cover_url} onChange={(e) => set('cover_url', e.target.value)} placeholder="https://… (link direto da imagem)" className={inp} />
+          </Field>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={f.has_seat_map} onChange={(e) => set('has_seat_map', e.target.checked)} />
             Evento com mapa de assentos (marcados)

@@ -15,27 +15,31 @@ import { Button } from './ui/button'
 type Phase = 'form' | 'pix' | 'done' | 'error'
 
 export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; config: PublicConfig }) {
+  // O backend devolve [] (nunca null), mas ser defensivo aqui evita crash de SSR se um
+  // evento não tiver setor/lote em algum caminho legado.
+  const lots = detail.lots ?? []
+  const sectors = detail.sectors ?? []
   const currentLot = useMemo(
-    () => detail.lots.find((l) => l.id === detail.current_lot_id) ?? null,
-    [detail],
+    () => lots.find((l) => l.id === detail.current_lot_id) ?? null,
+    [lots, detail.current_lot_id],
   )
-  const seated = detail.event.has_seat_map || detail.sectors.some((s) => s.kind !== 'standing' && (s.seats?.length ?? 0) > 0)
+  const seated = detail.event.has_seat_map || sectors.some((s) => s.kind !== 'standing' && (s.seats?.length ?? 0) > 0)
 
   const seatSector = useMemo(() => {
     const m = new Map<string, string>() // seatId -> sectorId
-    for (const s of detail.sectors) for (const seat of s.seats ?? []) m.set(seat.id, s.id)
+    for (const s of sectors) for (const seat of s.seats ?? []) m.set(seat.id, s.id)
     return m
-  }, [detail])
+  }, [sectors])
 
   const priceForSeat = useCallback(
     (seatId: string): number => {
       if (!currentLot) return 0
       const sectorId = seatSector.get(seatId)
-      const sector = detail.sectors.find((s) => s.id === sectorId)
+      const sector = sectors.find((s) => s.id === sectorId)
       const rule = sector?.prices?.find((p) => p.lot_id === currentLot.id)
       return rule?.price_cents ?? currentLot.price_cents
     },
-    [currentLot, seatSector, detail],
+    [currentLot, seatSector, sectors],
   )
 
   const [quantity, setQuantity] = useState(1)
@@ -240,7 +244,7 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
 
       {seated ? (
         <div className="mt-4">
-          <SeatMap sectors={detail.sectors} occupied={occupied} selected={selected} onToggle={toggleSeat} />
+          <SeatMap sectors={sectors} occupied={occupied} selected={selected} onToggle={toggleSeat} />
         </div>
       ) : (
         <div className="mt-4 flex items-center justify-between rounded-lg border border-border p-3">

@@ -75,6 +75,7 @@ export default function EventoPainelPage({ params }: { params: Promise<{ id: str
         {sectors.length > 0 && lots.length > 0 && <Prices lots={lots} sectors={sectors} />}
         <Courtesies eventId={id} lots={lots} />
         <Sales eventId={id} />
+        <Fechamento eventId={id} />
       </main>
     </>
   )
@@ -198,9 +199,18 @@ function Prices({ lots, sectors }: { lots: Lot[]; sectors: Sector[] }) {
 function Courtesies({ eventId, lots }: { eventId: string; lots: Lot[] }) {
   const [name, setName] = useState('')
   const [lotId, setLotId] = useState('')
+  const [catId, setCatId] = useState('')
+  const [cats, setCats] = useState<{ id: string; name: string }[]>([])
   const [msg, setMsg] = useState('')
+  useEffect(() => {
+    pget('courtesy-categories').then((r) => r.ok && setCats(r.data.categories ?? []))
+  }, [])
   async function give() {
-    const r = await ppost(`events/${eventId}/guests`, { name, lot_id: lotId || lots[0]?.id })
+    if (!catId) {
+      setMsg('Escolha a categoria da cortesia.')
+      return
+    }
+    const r = await ppost(`events/${eventId}/guests`, { name, lot_id: lotId || lots[0]?.id, courtesy_category_id: catId })
     setMsg(r.ok ? 'Cortesia emitida.' : r.data?.error || 'Falhou.')
     setName('')
   }
@@ -208,6 +218,10 @@ function Courtesies({ eventId, lots }: { eventId: string; lots: Lot[] }) {
     <Section title="Cortesias">
       <div className="flex flex-wrap items-center gap-2">
         <input placeholder="Nome do convidado" value={name} onChange={(e) => setName(e.target.value)} className={`${inp} flex-1`} />
+        <select value={catId} onChange={(e) => setCatId(e.target.value)} className={inp}>
+          <option value="">Categoria…</option>
+          {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
         <select value={lotId} onChange={(e) => setLotId(e.target.value)} className={inp}>
           <option value="">Lote…</option>
           {lots.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
@@ -232,5 +246,81 @@ function Sales({ eventId }: { eventId: string }) {
         <div className="rounded-xl border border-border bg-card p-4"><p className="text-xs text-muted-foreground">Taxa (comprador)</p><p className="mt-1 font-display text-xl font-bold">{brl(fin.taxa_cents)}</p></div>
       </div>
     </Section>
+  )
+}
+
+// Comprovação de público: ação de fechar, estado do atestado/âncora, relatórios e o link
+// público. Avisa quando há compromisso declarado não cumprido.
+function Fechamento({ eventId }: { eventId: string }) {
+  const [d, setD] = useState<any>(null)
+  const [msg, setMsg] = useState('')
+  const [busy, setBusy] = useState(false)
+  const load = () => pget(`events/${eventId}/reports/commitments`).then((r) => r.ok && setD(r.data))
+  useEffect(() => { load() }, [eventId])
+
+  async function close() {
+    setBusy(true)
+    setMsg('')
+    const r = await ppost(`events/${eventId}/close`)
+    setBusy(false)
+    setMsg(r.ok ? 'Evento fechado. Registro de comprovação gerado e assinado.' : r.data?.error || 'Não foi possível fechar.')
+    load()
+  }
+
+  if (!d) return null
+  const closed = !d.provisional
+  const pending = (d.commitments ?? []).filter((c: any) => c.status === 'nao_cumprido')
+
+  return (
+    <Section title="Comprovação de público">
+      {!closed ? (
+        <>
+          <p className="text-sm text-muted-foreground">
+            Ao fechar, novos check-ins e alterações de cortesia, compromisso e lote ficam travados, e
+            geramos o registro assinado que comprova o público e a contrapartida do evento.
+          </p>
+          <Button size="sm" className="mt-3" disabled={busy} onClick={close}>
+            {busy ? 'Fechando…' : 'Fechar e comprovar'}
+          </Button>
+        </>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-sm">Evento fechado — registro de comprovação vigente gerado.</p>
+          <div className="flex flex-wrap gap-3 text-sm">
+            <Link href={`/a/${d.attestation_id}`} className="text-primary">Ver registro público (relatórios) →</Link>
+            {(d.anchor_status === 'failed' || d.anchor_status === 'none') && (
+              <ReanchorButton eventId={eventId} attestationId={d.attestation_id} onDone={load} />
+            )}
+          </div>
+          {pending.length > 0 && (
+            <p className="rounded-lg bg-signal/10 p-2 text-sm text-signal">
+              Atenção: há {pending.length} compromisso(s) declarado(s) não cumprido(s) no fechamento.
+            </p>
+          )}
+        </div>
+      )}
+      {msg && <p className="mt-2 text-sm text-muted-foreground">{msg}</p>}
+    </Section>
+  )
+}
+
+// ReanchorButton reenfileira a âncora de um atestado em estado 'failed' ou 'none'.
+function ReanchorButton({ eventId, attestationId, onDone }: { eventId: string; attestationId: string; onDone: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  async function go() {
+    setBusy(true)
+    const r = await ppost(`events/${eventId}/attestations/${attestationId}/anchor`)
+    setBusy(false)
+    setMsg(r.ok ? 'Âncora reenfileirada.' : r.data?.error || 'Não foi possível reancorar.')
+    onDone()
+  }
+  return (
+    <span className="flex items-center gap-2">
+      <Button size="sm" variant="outline" disabled={busy} onClick={go}>
+        {busy ? '…' : 'Reancorar'}
+      </Button>
+      {msg && <span className="text-xs text-muted-foreground">{msg}</span>}
+    </span>
   )
 }

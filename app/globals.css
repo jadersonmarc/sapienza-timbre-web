@@ -104,3 +104,22 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Impressão do atestado (página /a/[id]): sem header/nav, fundo branco, sem sombras. */
+@media print {
+  header,
+  button {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  .rounded-2xl {
+    border: 1px solid #d7dce2 !important;
+    break-inside: avoid;
+  }
+}

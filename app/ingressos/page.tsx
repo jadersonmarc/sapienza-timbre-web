@@ -7,7 +7,7 @@ import { SiteHeader } from '@/components/site-header'
 import { Button } from '@/components/ui/button'
 import { TicketQR } from '@/components/ticket-qr'
 import { TicketActions } from '@/components/ticket-actions'
-import { fetchMyTickets, logout } from '@/lib/client'
+import { fetchMyTickets, logout, clearAnonToken } from '@/lib/client'
 import { formatDateTime } from '@/lib/format'
 import type { MyTicket } from '@/lib/types'
 
@@ -75,6 +75,7 @@ export default function IngressosPage() {
 
   async function doLogout() {
     await logout()
+    clearAnonToken() // seleção pré-acesso não fica acessível ao próximo usuário
     try {
       localStorage.removeItem(CACHE_KEY) // QR limpo no logout (§4.1)
     } catch {}

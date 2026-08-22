@@ -238,6 +238,7 @@ function Sales({ eventId }: { eventId: string }) {
   useEffect(() => { pget(`dash/events/${eventId}`).then((r) => r.ok && setD(r.data)) }, [eventId])
   if (!d) return null
   const fin = d.finance ?? {}
+  const funnel = d.session_funnel
   return (
     <Section title="Vendas">
       <div className="grid gap-3 sm:grid-cols-3">
@@ -245,6 +246,13 @@ function Sales({ eventId }: { eventId: string }) {
         <div className="rounded-xl border border-border bg-card p-4"><p className="text-xs text-muted-foreground">Seu repasse</p><p className="mt-1 font-display text-xl font-bold">{brl(fin.repasse_cents)}</p></div>
         <div className="rounded-xl border border-border bg-card p-4"><p className="text-xs text-muted-foreground">Taxa (comprador)</p><p className="mt-1 font-display text-xl font-bold">{brl(fin.taxa_cents)}</p></div>
       </div>
+      {funnel && (
+        <p className="mt-3 rounded-lg bg-secondary p-3 text-sm text-muted-foreground">
+          Sessões vinculadas: <span className="font-medium text-foreground">{funnel.bound}</span> · pagas:{' '}
+          <span className="font-medium text-foreground">{funnel.paid}</span> · abandonadas:{' '}
+          <span className="font-medium text-foreground">{funnel.abandoned}</span>
+        </p>
+      )}
     </Section>
   )
 }

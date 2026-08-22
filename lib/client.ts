@@ -64,6 +64,14 @@ export function anonToken(): string {
   return t
 }
 
+// clearAnonToken remove o token ao sair da conta — celular emprestado/compartilhado não
+// deixa a seleção anterior acessível ao próximo. O próximo acesso gera um token novo.
+export function clearAnonToken() {
+  try {
+    window.localStorage.removeItem('timbre_anon')
+  } catch {}
+}
+
 export async function createSession(sel: SessionSelection): Promise<{ ok: boolean; status: number; data: any }> {
   const res = await fetch('/api/checkout/sessions', {
     method: 'POST',

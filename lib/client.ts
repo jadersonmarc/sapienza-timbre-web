@@ -39,6 +39,7 @@ export type SessionSelection = {
   half_price_qty?: number
   coupon_code?: string
   campaign_id?: string
+  anon_token?: string
 }
 
 export type CheckoutSession = {
@@ -50,13 +51,34 @@ export type CheckoutSession = {
   items?: { lot_id?: string; quantity?: number; seat_ids?: string[]; half_price_qty?: number; coupon_code?: string }
 }
 
+// anon_token do navegador: identifica as sessões de checkout pré-acesso deste dispositivo.
+export function anonToken(): string {
+  if (typeof window === 'undefined') return ''
+  let t = window.localStorage.getItem('timbre_anon')
+  if (!t) {
+    t = crypto.randomUUID()
+    try {
+      window.localStorage.setItem('timbre_anon', t)
+    } catch {}
+  }
+  return t
+}
+
 export async function createSession(sel: SessionSelection): Promise<{ ok: boolean; status: number; data: any }> {
   const res = await fetch('/api/checkout/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(sel),
+    body: JSON.stringify({ ...sel, anon_token: anonToken() }),
   })
   return { ok: res.ok, status: res.status, data: await j(res) }
+}
+
+export async function authStarted(id: string): Promise<boolean> {
+  const res = await fetch(`/api/checkout/sessions/${id}/auth-started`, {
+    method: 'POST',
+    headers: { 'X-Anon-Token': anonToken() },
+  })
+  return res.ok
 }
 
 export async function bindSession(id: string): Promise<{ ok: boolean; status: number }> {

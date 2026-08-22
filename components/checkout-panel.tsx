@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Minus, Plus, Ticket, TriangleAlert, BadgePercent } from 'lucide-react'
 import type { PublicConfig, PublicEventDetail } from '@/lib/types'
 import { brl } from '@/lib/format'
-import { createSession, bindSession, paySession, fetchOccupancy, fetchBuyerSession, quote, type CheckoutBody, type Breakdown } from '@/lib/client'
+import { createSession, bindSession, paySession, authStarted, fetchOccupancy, fetchBuyerSession, quote, type CheckoutBody, type Breakdown } from '@/lib/client'
 import { SeatMap } from './seat-map'
 import { PixWait } from './pix-wait'
 import { CardWait } from './card-wait'
@@ -243,7 +243,7 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
             <span>{brl(bd ? bd.total_cents : total)}</span>
           </div>
         </div>
-        <BuyerLogin onAuthed={() => completePayment(true, buyerHasCpf)} />
+        <BuyerLogin onAuthed={() => completePayment(true, buyerHasCpf)} onAuthStarted={() => sessionId && authStarted(sessionId)} />
       </Panel>
     )
   }

@@ -9,7 +9,7 @@ const RESEND_SECONDS = 60
 
 // Login do comprador por e-mail + código (OTP), embutido no checkout. Compra exige
 // cadastro — após verificar, chama onAuthed para liberar o formulário de compra.
-export function BuyerLogin({ onAuthed }: { onAuthed: () => void }) {
+export function BuyerLogin({ onAuthed, onAuthStarted }: { onAuthed: () => void; onAuthStarted?: () => void }) {
   const [step, setStep] = useState<'email' | 'code'>('email')
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
@@ -32,6 +32,8 @@ export function BuyerLogin({ onAuthed }: { onAuthed: () => void }) {
       setError('Não foi possível enviar o código agora. Tente de novo.')
       return
     }
+    // O trecho lento (esperar o e-mail, trocar de app) começa aqui: estende a reserva.
+    onAuthStarted?.()
     setStep('code')
     setResendIn(RESEND_SECONDS)
   }

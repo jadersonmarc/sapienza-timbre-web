@@ -31,6 +31,48 @@ export async function startCheckout(body: CheckoutBody) {
   return { ok: res.ok, status: res.status, data: await j(res) }
 }
 
+// ── checkout (sessão: a conta é exigida no momento de pagar) ───────────────
+export type SessionSelection = {
+  event_id: string
+  quantity: number
+  seat_ids?: string[]
+  half_price_qty?: number
+  coupon_code?: string
+  campaign_id?: string
+}
+
+export type CheckoutSession = {
+  id: string
+  event_id: string
+  anon_token: string
+  status: string
+  expires_at?: string
+  items?: { lot_id?: string; quantity?: number; seat_ids?: string[]; half_price_qty?: number; coupon_code?: string }
+}
+
+export async function createSession(sel: SessionSelection): Promise<{ ok: boolean; status: number; data: any }> {
+  const res = await fetch('/api/checkout/sessions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(sel),
+  })
+  return { ok: res.ok, status: res.status, data: await j(res) }
+}
+
+export async function bindSession(id: string): Promise<{ ok: boolean; status: number }> {
+  const res = await fetch(`/api/checkout/sessions/${id}/bind`, { method: 'POST' })
+  return { ok: res.ok, status: res.status }
+}
+
+export async function paySession(id: string, body: { method: string; buyer_cpf?: string }): Promise<{ ok: boolean; status: number; data: any }> {
+  const res = await fetch(`/api/checkout/sessions/${id}/pay`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return { ok: res.ok, status: res.status, data: await j(res) }
+}
+
 export type Breakdown = {
   face_cents: number
   platform_fee_cents: number
@@ -85,12 +127,13 @@ export async function logout() {
   await fetch('/api/auth/logout', { method: 'POST' })
 }
 
-// Sessão do comprador (compra exige cadastro). 401 = não autenticado.
-export async function fetchBuyerSession(): Promise<{ authed: boolean; email?: string }> {
+// Sessão do comprador (compra exige cadastro — a conta é exigida no pagamento). 401 = não
+// autenticado. Inclui dados da conta (nome/cpf vêm do subject, não do formulário).
+export async function fetchBuyerSession(): Promise<{ authed: boolean; email?: string; name?: string; cpf?: string }> {
   const res = await fetch('/api/me')
   if (!res.ok) return { authed: false }
   const body = await j(res)
-  return { authed: true, email: body.email ?? undefined }
+  return { authed: true, email: body.email ?? undefined, name: body.name ?? undefined, cpf: body.cpf ?? undefined }
 }
 
 // ── meus ingressos ─────────────────────────────────────────────────────────────

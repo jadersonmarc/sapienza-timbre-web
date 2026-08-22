@@ -76,6 +76,7 @@ export default function EventoPainelPage({ params }: { params: Promise<{ id: str
         <Courtesies eventId={id} lots={lots} />
         <Sales eventId={id} />
         <Fechamento eventId={id} />
+        <Notificacoes eventId={id} />
       </main>
     </>
   )
@@ -252,6 +253,38 @@ function Sales({ eventId }: { eventId: string }) {
           <span className="font-medium text-foreground">{funnel.paid}</span> · abandonadas:{' '}
           <span className="font-medium text-foreground">{funnel.abandoned}</span>
         </p>
+      )}
+    </Section>
+  )
+}
+
+// Envios de ingresso por evento: quantos foram, quantos falharam e reenvio. É a primeira
+// coisa que o produtor procura quando alguém diz que não recebeu o QR.
+function Notificacoes({ eventId }: { eventId: string }) {
+  const [d, setD] = useState<any>(null)
+  const load = () => pget(`dash/events/${eventId}/notifications`).then((r) => r.ok && setD(r.data))
+  useEffect(() => { load() }, [eventId])
+  async function resend(id: string) {
+    await ppost(`notifications/${id}/resend`)
+    load()
+  }
+  if (!d) return null
+  const failed = (d.notifications ?? []).filter((n: any) => n.status === 'failed')
+  return (
+    <Section title="Envios de ingresso">
+      <p className="text-sm text-muted-foreground">
+        Enviados: <span className="font-medium text-foreground">{d.sent}</span> · Falhas:{' '}
+        <span className="font-medium text-foreground">{d.failed}</span>
+      </p>
+      {failed.length > 0 && (
+        <ul className="mt-3 space-y-2">
+          {failed.map((n: any) => (
+            <li key={n.id} className="flex items-center justify-between rounded-lg border border-border bg-card p-3 text-sm">
+              <span className="truncate text-muted-foreground">{n.to_email}</span>
+              <Button size="sm" variant="outline" onClick={() => resend(n.id)}>Reenviar</Button>
+            </li>
+          ))}
+        </ul>
       )}
     </Section>
   )

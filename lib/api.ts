@@ -1,7 +1,7 @@
 // Cliente da API pública do Timbre (lado servidor: SSR/ISR). Só rotas que existem no Go.
 // Todos os fetches são tolerantes a falha (retornam vazio/default) para o build/prerender
 // não quebrar sem rede e para a página degradar graciosamente se a API estiver fora.
-import type { EventCard, PublicConfig, PublicEventDetail, TokenMetadata, TokenState } from './types'
+import type { Attestation, EventCard, PublicConfig, PublicEventDetail, TokenMetadata, TokenState } from './types'
 
 const FALLBACK_API = 'https://timbre-api.sapienzalabs.com.br'
 
@@ -87,6 +87,17 @@ export async function fetchToken(id: string): Promise<{ state: TokenState } | nu
 export async function fetchTokenMetadata(id: string): Promise<TokenMetadata | null> {
   try {
     const res = await fetch(`${API_BASE}/api/v1/public/tokens/${id}/metadata`, { next: { revalidate: 300 } })
+    if (!res.ok) return null
+    return await res.json()
+  } catch {
+    return null
+  }
+}
+
+// Atestado público (verificação do fechamento do evento). Sem autenticação.
+export async function fetchAttestation(id: string): Promise<Attestation | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/public/attestations/${id}`, { next: { revalidate: 60 } })
     if (!res.ok) return null
     return await res.json()
   } catch {

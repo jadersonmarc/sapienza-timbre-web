@@ -101,3 +101,43 @@ export type MyTicket = {
   // mostrar spinner/aviso/badge); 'pending' é transitório (mint em fila).
   chain_status?: string
 }
+
+// ── atestado público (verificação) ────────────────────────────────────────────
+
+export type AttestationCategoryCount = { category: string; count: number }
+export type AttestationLotSales = { lot_id: string; name: string; sold: number }
+export type AttestationSectorSales = { sector_id: string; name: string; sold: number }
+export type AttestationCommitment = {
+  kind: string
+  category?: string
+  target_type: string
+  target_value: string
+  realized: string
+  description?: string
+}
+
+export type AttestationPayload = {
+  format_version: number
+  event: { id: string; name: string; starts_at: string; ends_at: string; city: string; producer: string }
+  sales: { tickets_sold: number; by_lot: AttestationLotSales[]; by_sector: AttestationSectorSales[] }
+  courtesy: { issued: AttestationCategoryCount[]; used: AttestationCategoryCount[] }
+  attendance: { present: number; absent: number; rate_pct: number; reentries: number }
+  half_price: { granted: number; quota: number }
+  commitments: AttestationCommitment[]
+}
+
+export type Attestation = {
+  id: string
+  event_id: string
+  version: number
+  supersedes_id?: string
+  superseded_by?: string
+  format_version: number
+  key_id: string
+  payload: AttestationPayload
+  serialization: string
+  digest: string
+  signature: string
+  public_key: string
+  anchor: { status: string; tx_hash?: string; anchored_at?: string }
+}

@@ -1,21 +1,34 @@
 'use client'
 
 import { useState } from 'react'
-import { register, login } from '@/lib/client'
+import { register, login, updateMe } from '@/lib/client'
 import { Button } from './ui/button'
 
 // Cadastro do comprador dentro do checkout. A pessoa escolheu os ingressos e a reserva está
 // correndo, então o formulário pede de uma vez tudo o que a compra precisa — nome, CPF,
 // telefone e nascimento vão para a cobrança e para a portaria — e cria a conta já logada.
 // Quem já tem conta entra pela senha, sem sair da página.
-export function BuyerAccountForm({ onReady, onStarted }: { onReady: () => void; onStarted?: () => void }) {
+export function BuyerAccountForm({
+  onReady,
+  onStarted,
+  complete,
+  initial,
+}: {
+  onReady: () => void
+  onStarted?: () => void
+  // complete = a conta existe mas está sem os dados que a cobrança exige (contas antigas,
+  // criadas só com e-mail). Aqui não se cria conta nem se pede senha: completa-se a que já
+  // está aberta, sem tirar a pessoa do meio da compra.
+  complete?: boolean
+  initial?: { name?: string; cpf?: string; phone?: string; birth_date?: string }
+}) {
   const [mode, setMode] = useState<'signup' | 'signin'>('signup')
   const [form, setForm] = useState({
-    name: '',
+    name: initial?.name ?? '',
     email: '',
-    cpf: '',
-    phone: '',
-    birth_date: '',
+    cpf: initial?.cpf ? maskCpf(initial.cpf) : '',
+    phone: initial?.phone ? maskPhone(initial.phone) : '',
+    birth_date: initial?.birth_date ?? '',
     password: '',
   })
   const [busy, setBusy] = useState(false)
@@ -25,21 +38,22 @@ export function BuyerAccountForm({ onReady, onStarted }: { onReady: () => void; 
 
   const cpfDigits = form.cpf.replace(/\D/g, '')
   const phoneDigits = form.phone.replace(/\D/g, '')
-  const canSignup =
+  const dataComplete =
     form.name.trim().split(/\s+/).length >= 2 &&
-    form.email.includes('@') &&
     cpfDigits.length === 11 &&
     phoneDigits.length >= 10 &&
-    form.birth_date.length === 10 &&
-    form.password.length >= 8
+    form.birth_date.length === 10
+  const canSignup = dataComplete && form.email.includes('@') && form.password.length >= 8
   const canSignin = form.email.includes('@') && form.password.length >= 1
+  const canSubmit = complete ? dataComplete : mode === 'signup' ? canSignup : canSignin
 
   async function submit() {
     setError('')
     setBusy(true)
     onStarted?.()
-    const res =
-      mode === 'signup'
+    const res = complete
+      ? await updateMe({ name: form.name, cpf: cpfDigits, phone: phoneDigits, birth_date: form.birth_date })
+      : mode === 'signup'
         ? await register({ ...form, cpf: cpfDigits, phone: phoneDigits })
         : await login(form.email, form.password)
     setBusy(false)
@@ -52,21 +66,32 @@ export function BuyerAccountForm({ onReady, onStarted }: { onReady: () => void; 
 
   return (
     <div>
-      <div className="mb-4 flex gap-2">
-        <TabButton active={mode === 'signup'} onClick={() => setMode('signup')}>
-          Criar conta
-        </TabButton>
-        <TabButton active={mode === 'signin'} onClick={() => setMode('signin')}>
-          Já tenho conta
-        </TabButton>
-      </div>
+      {complete ? (
+        <div className="mb-4">
+          <p className="font-display text-lg font-semibold">Complete seu cadastro</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Sua conta foi criada só com e-mail. Precisamos destes dados para emitir a cobrança no seu nome.
+          </p>
+        </div>
+      ) : (
+        <div className="mb-4 flex gap-2">
+          <TabButton active={mode === 'signup'} onClick={() => setMode('signup')}>
+            Criar conta
+          </TabButton>
+          <TabButton active={mode === 'signin'} onClick={() => setMode('signin')}>
+            Já tenho conta
+          </TabButton>
+        </div>
+      )}
 
       <div className="space-y-3">
-        {mode === 'signup' && (
+        {(complete || mode === 'signup') && (
           <Field label="Nome completo" value={form.name} onChange={set('name')} autoComplete="name" placeholder="Como no documento" />
         )}
-        <Field label="E-mail" value={form.email} onChange={set('email')} type="email" autoComplete="email" placeholder="voce@email.com" />
-        {mode === 'signup' && (
+        {!complete && (
+          <Field label="E-mail" value={form.email} onChange={set('email')} type="email" autoComplete="email" placeholder="voce@email.com" />
+        )}
+        {(complete || mode === 'signup') && (
           <>
             <Field
               label="CPF"
@@ -94,25 +119,22 @@ export function BuyerAccountForm({ onReady, onStarted }: { onReady: () => void; 
             />
           </>
         )}
-        <Field
-          label="Senha"
-          value={form.password}
-          onChange={set('password')}
-          type="password"
-          autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-          placeholder={mode === 'signup' ? 'Ao menos 8 caracteres' : ''}
-        />
+        {!complete && (
+          <Field
+            label="Senha"
+            value={form.password}
+            onChange={set('password')}
+            type="password"
+            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+            placeholder={mode === 'signup' ? 'Ao menos 8 caracteres' : ''}
+          />
+        )}
       </div>
 
       {error && <p className="mt-3 rounded-lg bg-destructive/10 p-2 text-sm text-destructive">{error}</p>}
 
-      <Button
-        size="lg"
-        className="mt-4 w-full"
-        disabled={busy || (mode === 'signup' ? !canSignup : !canSignin)}
-        onClick={submit}
-      >
-        {busy ? 'Aguarde…' : mode === 'signup' ? 'Criar conta e continuar' : 'Entrar e continuar'}
+      <Button size="lg" className="mt-4 w-full" disabled={busy || !canSubmit} onClick={submit}>
+        {busy ? 'Aguarde…' : complete ? 'Salvar e continuar' : mode === 'signup' ? 'Criar conta e continuar' : 'Entrar e continuar'}
       </Button>
       <p className="mt-2 text-center text-xs text-muted-foreground">
         Sua reserva continua guardada enquanto você preenche.

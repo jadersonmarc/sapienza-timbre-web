@@ -108,6 +108,18 @@ export type RegisterBody = {
   password: string
 }
 
+// updateMe completa/corrige os dados da conta. Usado quando uma conta antiga (criada só
+// com e-mail) precisa de documento e telefone para poder pagar.
+export async function updateMe(body: Omit<RegisterBody, 'email' | 'password'>): Promise<{ ok: boolean; error: string }> {
+  const res = await fetch('/api/me', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const data = await j(res)
+  return { ok: res.ok, error: data?.error ?? '' }
+}
+
 export async function register(body: RegisterBody): Promise<{ ok: boolean; error: string }> {
   const res = await fetch('/api/auth/register', {
     method: 'POST',
@@ -218,11 +230,25 @@ export async function logout() {
 
 // Sessão do comprador (compra exige cadastro — a conta é exigida no pagamento). 401 = não
 // autenticado. Inclui dados da conta (nome/cpf vêm do subject, não do formulário).
-export async function fetchBuyerSession(): Promise<{ authed: boolean; email?: string; name?: string; cpf?: string }> {
+export async function fetchBuyerSession(): Promise<{
+  authed: boolean
+  email?: string
+  name?: string
+  cpf?: string
+  phone?: string
+  birth_date?: string
+}> {
   const res = await fetch('/api/me')
   if (!res.ok) return { authed: false }
   const body = await j(res)
-  return { authed: true, email: body.email ?? undefined, name: body.name ?? undefined, cpf: body.cpf ?? undefined }
+  return {
+    authed: true,
+    email: body.email || undefined,
+    name: body.name || undefined,
+    cpf: body.cpf || undefined,
+    phone: body.phone || undefined,
+    birth_date: body.birth_date || undefined,
+  }
 }
 
 // ── meus ingressos ─────────────────────────────────────────────────────────────

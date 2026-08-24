@@ -70,6 +70,9 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
   const [buyerHasCpf, setBuyerHasCpf] = useState(false)
   const [buyerName, setBuyerName] = useState('')
   const [buyerCpf, setBuyerCpf] = useState('')
+  const [buyerPhone, setBuyerPhone] = useState('')
+  const [buyerBirth, setBuyerBirth] = useState('')
+  const [needsProfile, setNeedsProfile] = useState(false)
   const [attendees, setAttendees] = useState<Attendee[]>([])
   const [invoiceURL, setInvoiceURL] = useState('')
 
@@ -198,8 +201,18 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
     if (sess.email) setBuyerEmail(sess.email)
     if (sess.name) setBuyerName(sess.name)
     if (sess.cpf) setBuyerCpf(sess.cpf)
+    if (sess.phone) setBuyerPhone(sess.phone)
+    if (sess.birth_date) setBuyerBirth(sess.birth_date)
     setBuyerHasCpf(!!sess.cpf)
-    setPhase(sess.authed ? 'attendees' : 'account')
+    if (!sess.authed) {
+      setPhase('account')
+      return
+    }
+    // Conta criada só com e-mail (pelo código de acesso) não tem documento, e quem paga é a
+    // conta — não o participante da ficha. Sem isto, a compra só descobre o problema no
+    // fim, com um 400 que parece erro de CPF.
+    setNeedsProfile(!sess.cpf || !sess.phone || !sess.birth_date)
+    setPhase(!sess.cpf || !sess.phone || !sess.birth_date ? 'account' : 'attendees')
   }
 
   // Fecha a compra com a ficha dos participantes. Vincula a sessão (estende a reserva) e
@@ -264,7 +277,12 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
       <Panel>
         <Steps current="account" />
         <OrderSummary qty={qty} total={bd ? bd.total_cents : total} />
-        <BuyerAccountForm onReady={loadBuyer} onStarted={() => sessionId && authStarted(sessionId)} />
+        <BuyerAccountForm
+          complete={needsProfile}
+          initial={{ name: buyerName, cpf: buyerCpf, phone: buyerPhone, birth_date: buyerBirth }}
+          onReady={loadBuyer}
+          onStarted={() => sessionId && authStarted(sessionId)}
+        />
       </Panel>
     )
   }

@@ -95,7 +95,7 @@ export async function bindSession(id: string): Promise<{ ok: boolean; status: nu
 }
 
 // Attendee é a ficha nominal de um ingresso: quem vai usar aquela entrada.
-export type Attendee = { name: string; cpf: string; email?: string }
+export type Attendee = { name: string; cpf: string; email?: string; half_price?: boolean }
 
 // Dados do cadastro do comprador. Nome, documento e telefone não são burocracia da tela:
 // é o que o gateway exige para criar a cobrança no nome de alguém.
@@ -129,6 +129,18 @@ export async function login(email: string, password: string): Promise<{ ok: bool
 }
 
 // updateSession troca a seleção/ficha da reserva já criada, sem recomeçar o checkout.
+// resetPassword define uma senha nova com o código recebido por e-mail e já devolve a
+// pessoa autenticada — quem chegou aqui não tem como entrar de outro jeito.
+export async function resetPassword(email: string, code: string, password: string): Promise<{ ok: boolean; error: string }> {
+  const res = await fetch('/api/auth/reset-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code, password }),
+  })
+  const data = await j(res)
+  return { ok: res.ok, error: data?.error ?? '' }
+}
+
 export async function updateSession(
   id: string,
   sel: SessionSelection & { attendees?: Attendee[] },

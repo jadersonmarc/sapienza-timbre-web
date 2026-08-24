@@ -6,7 +6,7 @@ import { Mail, KeyRound } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { BuyerAccountForm } from '@/components/buyer-account-form'
 import { Button } from '@/components/ui/button'
-import { requestCode, verifyCode } from '@/lib/client'
+import { requestCode, resetPassword } from '@/lib/client'
 
 const RESEND_SECONDS = 60
 
@@ -19,6 +19,7 @@ export default function ContaPage() {
   const [step, setStep] = useState<'email' | 'code'>('email')
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
+  const [newPassword, setNewPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [resendIn, setResendIn] = useState(0)
@@ -42,13 +43,15 @@ export default function ContaPage() {
     setResendIn(RESEND_SECONDS)
   }
 
+  // O código prova o e-mail e serve para DEFINIR a senha nova. Só entrar deixaria a senha
+  // perdida e a próxima visita dependendo de outro e-mail.
   async function confirm() {
     setError('')
     setBusy(true)
-    const { ok } = await verifyCode(email, code)
+    const { ok, error: err } = await resetPassword(email, code, newPassword)
     setBusy(false)
     if (!ok) {
-      setError('Código inválido ou expirado. Confira ou peça um novo.')
+      setError(err || 'Código inválido ou expirado. Confira ou peça um novo.')
       return
     }
     router.push('/ingressos')
@@ -73,7 +76,7 @@ export default function ContaPage() {
         ) : step === 'email' ? (
           <div className="mt-6 space-y-3">
             <p className="text-sm text-muted-foreground">
-              Enviamos um código para o seu e-mail e você entra sem a senha.
+              Enviamos um código para o seu e-mail e você define uma senha nova.
             </p>
             <label className="block">
               <span className="mb-1 flex items-center gap-2 text-sm">
@@ -112,9 +115,25 @@ export default function ContaPage() {
                 className="h-12 w-full rounded-lg border border-border bg-card px-3 text-center font-mono text-lg tracking-widest"
               />
             </label>
+            <label className="block">
+              <span className="mb-1 block text-sm text-muted-foreground">Nova senha</span>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                autoComplete="new-password"
+                placeholder="Ao menos 8 caracteres"
+                className="h-12 w-full rounded-lg border border-border bg-card px-3"
+              />
+            </label>
             {error && <p className="rounded-lg bg-destructive/10 p-2 text-sm text-destructive">{error}</p>}
-            <Button size="lg" className="w-full" disabled={busy || code.length < 4} onClick={confirm}>
-              {busy ? 'Verificando…' : 'Entrar'}
+            <Button
+              size="lg"
+              className="w-full"
+              disabled={busy || code.length < 4 || newPassword.length < 8}
+              onClick={confirm}
+            >
+              {busy ? 'Salvando…' : 'Definir senha e entrar'}
             </Button>
             <button
               className="w-full text-center text-sm text-muted-foreground underline disabled:opacity-50"

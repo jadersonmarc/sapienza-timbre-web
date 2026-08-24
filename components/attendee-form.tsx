@@ -11,12 +11,14 @@ import { maskCpf } from './buyer-account-form'
 // e a meia-entrada não tem a quem ser cobrada.
 export function AttendeeForm({
   quantity,
+  halfQty,
   buyer,
   initial,
   onSubmit,
   busy,
 }: {
   quantity: number
+  halfQty: number
   buyer: { name: string; cpf: string; email: string }
   initial?: Attendee[]
   onSubmit: (list: Attendee[]) => void
@@ -36,9 +38,10 @@ export function AttendeeForm({
     setList((l) => l.map((a, idx) => (idx === i ? { ...a, ...patch } : a)))
   }
 
-  const complete = list.every(
-    (a) => a.name.trim().split(/\s+/).length >= 2 && a.cpf.replace(/\D/g, '').length === 11,
-  )
+  const halfMarked = list.filter((a) => a.half_price).length
+  const complete =
+    list.every((a) => a.name.trim().split(/\s+/).length >= 2 && a.cpf.replace(/\D/g, '').length === 11) &&
+    halfMarked === halfQty
 
   return (
     <div>
@@ -83,6 +86,22 @@ export function AttendeeForm({
               type="email"
               className="mt-2 h-11 w-full rounded-lg border border-border bg-card px-3 text-sm"
             />
+            {halfQty > 0 && (
+              <label className="mt-2 flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={!!a.half_price}
+                  onChange={(e) => update(i, { half_price: e.target.checked })}
+                  className="mt-0.5 size-4"
+                />
+                <span>
+                  Meia-entrada
+                  <span className="block text-xs text-muted-foreground">
+                    Esta pessoa apresenta o comprovante na entrada.
+                  </span>
+                </span>
+              </label>
+            )}
           </div>
         ))}
       </div>
@@ -97,7 +116,9 @@ export function AttendeeForm({
       </Button>
       {!complete && (
         <p className="mt-2 text-center text-xs text-muted-foreground">
-          Preencha nome completo e CPF de cada participante.
+          {halfMarked !== halfQty && halfQty > 0
+            ? `Marque quem tem direito à meia-entrada (${halfMarked} de ${halfQty}).`
+            : 'Preencha nome completo e CPF de cada participante.'}
         </p>
       )}
     </div>

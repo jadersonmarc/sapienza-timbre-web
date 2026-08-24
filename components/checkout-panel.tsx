@@ -279,6 +279,7 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
         {error && <p className="mb-3 rounded-lg bg-destructive/10 p-2 text-sm text-destructive">{error}</p>}
         <AttendeeForm
           quantity={qty}
+          halfQty={halfQty}
           buyer={{ name: buyerName, cpf: buyerCpf, email: buyerEmail }}
           initial={attendees.length ? attendees : undefined}
           busy={busy}

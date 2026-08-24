@@ -12,12 +12,13 @@ import { CardWait } from './card-wait'
 import { HoldTimer } from './hold-timer'
 import { BuyerAccountForm } from './buyer-account-form'
 import { AttendeeForm } from './attendee-form'
+import { CardForm, type CardInput } from './card-form'
 import { Button } from './ui/button'
 
 // As etapas seguem a ordem comercial: escolher, se identificar, dizer quem vai, pagar.
 // 'card' existe porque o cartão é pago no ambiente do gateway, e a tela precisa continuar
 // aqui esperando a confirmação.
-type Phase = 'form' | 'account' | 'attendees' | 'pix' | 'card' | 'done'
+type Phase = 'form' | 'account' | 'attendees' | 'cardform' | 'pix' | 'card' | 'done'
 
 const STEPS: { key: Phase; label: string }[] = [
   { key: 'form', label: 'Ingressos' },
@@ -217,8 +218,16 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
 
   // Fecha a compra com a ficha dos participantes. Vincula a sessão (estende a reserva) e
   // paga; o cartão sai daqui para o ambiente do gateway.
-  async function doPay(list: Attendee[]) {
+  async function doPay(list: Attendee[], card?: CardInput) {
     if (!sessionId) return
+    // Cartão é cobrado na nossa tela: primeiro os dados, depois a cobrança. Sem eles não
+    // há o que enviar ao provedor.
+    if (method === 'credit_card' && !card) {
+      setAttendees(list)
+      setError('')
+      setPhase('cardform')
+      return
+    }
     setError('')
     setBusy(true)
     const bind = await bindSession(sessionId)
@@ -231,6 +240,7 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
       method,
       buyer_cpf: cpf || undefined,
       attendees: list.length ? list : undefined,
+      card: card ? { ...card, number: card.number.replace(/\s/g, '') } : undefined,
     })
     setBusy(false)
     if (!ok) {
@@ -238,17 +248,16 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
         backToForm('Sua reserva expirou. Refaça a seleção.')
       } else {
         setError(data?.error || 'Não foi possível concluir o pagamento. Tente novamente.')
-        setPhase('attendees')
+        setPhase(method === 'credit_card' ? 'cardform' : 'attendees')
       }
       return
     }
     setOrder({ id: data.order_id, pix: data.pix_code })
     if (method === 'credit_card') {
-      // O cartão é digitado no ambiente do gateway: abre lá e a confirmação chega aqui
-      // pelo acompanhamento do pedido.
+      // Cobrança enviada com os dados do cartão: resta a confirmação do provedor, que
+      // chega pelo acompanhamento do pedido.
       setInvoiceURL(data.invoice_url ?? '')
       setPhase('card')
-      if (data.invoice_url) window.open(data.invoice_url, '_blank', 'noopener')
       return
     }
     setPhase('pix')
@@ -313,19 +322,35 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
     )
   }
 
-  // ── cartão: pago no ambiente do gateway, confirmação acompanhada aqui ──
+  // ── dados do cartão (na nossa tela) ──
+  if (phase === 'cardform') {
+    return (
+      <Panel>
+        <Steps current="pix" />
+        <HoldTimer seconds={config.hold_ttl_seconds} />
+        <OrderSummary qty={qty} total={bd ? bd.total_cents : total} />
+        {error && <p className="mb-3 rounded-lg bg-destructive/10 p-2 text-sm text-destructive">{error}</p>}
+        <CardForm total={brl(bd ? bd.total_cents : total)} busy={busy} onSubmit={(card) => doPay(attendees, card)} />
+        <button className="mt-3 w-full text-center text-xs text-muted-foreground underline" onClick={() => setPhase('attendees')}>
+          Voltar
+        </button>
+      </Panel>
+    )
+  }
+
+  // ── cartão enviado: aguardando confirmação do provedor ──
   if (phase === 'card' && order) {
     return (
       <Panel>
         <Steps current="pix" />
         <HoldTimer seconds={config.hold_ttl_seconds} />
         <p className="text-sm text-muted-foreground">
-          Abrimos o pagamento seguro em outra aba. Conclua por lá e volte para esta tela — a confirmação
-          aparece aqui automaticamente.
+          Enviamos o pagamento para aprovação. Isso costuma levar alguns segundos — o resultado aparece
+          aqui, sem precisar recarregar.
         </p>
         {invoiceURL && (
-          <a href={invoiceURL} target="_blank" rel="noopener noreferrer" className="mt-3 block">
-            <Button className="w-full">Abrir pagamento com cartão</Button>
+          <a href={invoiceURL} target="_blank" rel="noopener noreferrer" className="mt-3 block text-center text-xs text-muted-foreground underline">
+            Ver o comprovante no provedor
           </a>
         )}
         <div className="mt-4">

@@ -165,7 +165,10 @@ export async function updateSession(
   return { ok: res.ok, status: res.status, data: await j(res) }
 }
 
-export async function paySession(id: string, body: { method: string; buyer_cpf?: string; attendees?: Attendee[] }): Promise<{ ok: boolean; status: number; data: any }> {
+export async function paySession(
+  id: string,
+  body: { method: string; buyer_cpf?: string; attendees?: Attendee[]; card?: Record<string, string> },
+): Promise<{ ok: boolean; status: number; data: any }> {
   const res = await fetch(`/api/checkout/sessions/${id}/pay`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

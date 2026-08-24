@@ -270,18 +270,32 @@ function Notificacoes({ eventId }: { eventId: string }) {
   }
   if (!d) return null
   const failed = (d.notifications ?? []).filter((n: any) => n.status === 'failed')
+  const loggedOnly = d.logged_only ?? 0
   return (
     <Section title="Envios de ingresso">
       <p className="text-sm text-muted-foreground">
-        Enviados: <span className="font-medium text-foreground">{d.sent}</span> · Falhas:{' '}
+        Entregues: <span className="font-medium text-foreground">{d.sent}</span> · Falhas:{' '}
         <span className="font-medium text-foreground">{d.failed}</span>
       </p>
+      {loggedOnly > 0 && (
+        <p className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+          <span className="font-medium">{loggedOnly}</span>{' '}
+          {loggedOnly === 1 ? 'mensagem foi registrada mas não saiu' : 'mensagens foram registradas mas não saíram'}:
+          o servidor está sem provedor de e-mail configurado. Defina <code>RESEND_API_KEY</code> e{' '}
+          <code>MAIL_FROM</code> e reenvie.
+        </p>
+      )}
       {failed.length > 0 && (
         <ul className="mt-3 space-y-2">
           {failed.map((n: any) => (
-            <li key={n.id} className="flex items-center justify-between rounded-lg border border-border bg-card p-3 text-sm">
-              <span className="truncate text-muted-foreground">{n.to_email}</span>
-              <Button size="sm" variant="outline" onClick={() => resend(n.id)}>Reenviar</Button>
+            <li key={n.id} className="rounded-lg border border-border bg-card p-3 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <span className="truncate text-muted-foreground">{n.to_email}</span>
+                <Button size="sm" variant="outline" onClick={() => resend(n.id)}>Reenviar</Button>
+              </div>
+              {n.last_error && (
+                <p className="mt-2 break-words text-xs text-muted-foreground">{n.last_error}</p>
+              )}
             </li>
           ))}
         </ul>

@@ -218,7 +218,7 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
 
   // Fecha a compra com a ficha dos participantes. Vincula a sessão (estende a reserva) e
   // paga; o cartão sai daqui para o ambiente do gateway.
-  async function doPay(list: Attendee[], card?: CardInput) {
+  async function doPay(list: Attendee[], card?: CardInput, installments = 1) {
     if (!sessionId) return
     // Cartão é cobrado na nossa tela: primeiro os dados, depois a cobrança. Sem eles não
     // há o que enviar ao provedor.
@@ -241,6 +241,7 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
       buyer_cpf: cpf || undefined,
       attendees: list.length ? list : undefined,
       card: card ? { ...card, number: card.number.replace(/\s/g, '') } : undefined,
+      installments: installments > 1 ? installments : undefined,
     })
     setBusy(false)
     if (!ok) {
@@ -330,7 +331,14 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
         <HoldTimer seconds={config.hold_ttl_seconds} />
         <OrderSummary qty={qty} total={bd ? bd.total_cents : total} />
         {error && <p className="mb-3 rounded-lg bg-destructive/10 p-2 text-sm text-destructive">{error}</p>}
-        <CardForm total={brl(bd ? bd.total_cents : total)} busy={busy} onSubmit={(card) => doPay(attendees, card)} />
+        <CardForm
+          total={brl(bd ? bd.total_cents : total)}
+          totalCents={bd ? bd.total_cents : total}
+          maxInstallments={config.max_installments ?? 1}
+          minInstallmentCents={config.min_installment_cents ?? 500}
+          busy={busy}
+          onSubmit={(card, installments) => doPay(attendees, card, installments)}
+        />
         <button className="mt-3 w-full text-center text-xs text-muted-foreground underline" onClick={() => setPhase('attendees')}>
           Voltar
         </button>

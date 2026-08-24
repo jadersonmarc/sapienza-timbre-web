@@ -167,7 +167,13 @@ export async function updateSession(
 
 export async function paySession(
   id: string,
-  body: { method: string; buyer_cpf?: string; attendees?: Attendee[]; card?: Record<string, string> },
+  body: {
+    method: string
+    buyer_cpf?: string
+    attendees?: Attendee[]
+    card?: Record<string, string>
+    installments?: number
+  },
 ): Promise<{ ok: boolean; status: number; data: any }> {
   const res = await fetch(`/api/checkout/sessions/${id}/pay`, {
     method: 'POST',

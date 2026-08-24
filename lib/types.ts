@@ -70,6 +70,9 @@ export type PublicEventDetail = {
 export type PublicConfig = {
   payment_methods: string[]
   hold_ttl_seconds: number
+  // Regras do parcelamento vêm do servidor; a tela só monta as opções que cabem.
+  max_installments?: number
+  min_installment_cents?: number
 }
 
 export type TokenState = {

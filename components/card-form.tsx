@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Lock } from 'lucide-react'
+import { brl } from '@/lib/format'
 import { Button } from './ui/button'
 
 export type CardInput = {
@@ -17,7 +18,22 @@ export type CardInput = {
 // Cartão digitado aqui mesmo, sem trocar de site. Os dados vão numa única requisição ao
 // nosso servidor e de lá ao provedor de pagamento — não ficam guardados nem aparecem em
 // log. CEP e número do endereço são exigidos pelo antifraude do provedor.
-export function CardForm({ total, busy, onSubmit }: { total: string; busy?: boolean; onSubmit: (c: CardInput) => void }) {
+export function CardForm({
+  total,
+  totalCents,
+  maxInstallments = 1,
+  minInstallmentCents = 500,
+  busy,
+  onSubmit,
+}: {
+  total: string
+  totalCents: number
+  maxInstallments?: number
+  minInstallmentCents?: number
+  busy?: boolean
+  onSubmit: (c: CardInput, installments: number) => void
+}) {
+  const [installments, setInstallments] = useState(1)
   const [c, setC] = useState<CardInput>({
     holder_name: '',
     number: '',
@@ -30,6 +46,10 @@ export function CardForm({ total, busy, onSubmit }: { total: string; busy?: bool
   const set = (k: keyof CardInput) => (v: string) => setC((p) => ({ ...p, [k]: v }))
 
   const digits = (v: string) => v.replace(/\D/g, '')
+
+  // Só oferece o que cabe no piso por parcela — a mesma regra que o servidor confere.
+  const maxForTotal = Math.max(1, Math.min(maxInstallments, Math.floor(totalCents / minInstallmentCents)))
+  const options = Array.from({ length: maxForTotal }, (_, i) => i + 1)
   const ready =
     digits(c.number).length >= 13 &&
     c.holder_name.trim().split(/\s+/).length >= 2 &&
@@ -111,8 +131,28 @@ export function CardForm({ total, busy, onSubmit }: { total: string; busy?: bool
         </div>
       </div>
 
-      <Button size="lg" className="mt-4 w-full" disabled={!ready || busy} onClick={() => onSubmit(c)}>
-        {busy ? 'Processando…' : `Pagar ${total}`}
+      {maxForTotal > 1 && (
+        <label className="mt-3 block">
+          <span className="mb-1 block text-sm text-muted-foreground">Parcelamento</span>
+          <select
+            value={installments}
+            onChange={(e) => setInstallments(Number(e.target.value))}
+            className="h-11 w-full rounded-lg border border-border bg-card px-3 text-sm"
+          >
+            {options.map((n) => (
+              <option key={n} value={n}>
+                {n === 1 ? `À vista — ${total}` : `${n}× de ${brl(Math.round(totalCents / n))} sem juros`}
+              </option>
+            ))}
+          </select>
+          <span className="mt-1 block text-xs text-muted-foreground">
+            O total é o mesmo em qualquer parcelamento.
+          </span>
+        </label>
+      )}
+
+      <Button size="lg" className="mt-4 w-full" disabled={!ready || busy} onClick={() => onSubmit(c, installments)}>
+        {busy ? 'Processando…' : installments > 1 ? `Pagar ${installments}× de ${brl(Math.round(totalCents / installments))}` : `Pagar ${total}`}
       </Button>
       <p className="mt-2 text-center text-xs text-muted-foreground">
         O CEP e o número são pedidos pelo antifraude do provedor de pagamento.

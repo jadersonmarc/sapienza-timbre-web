@@ -5,15 +5,26 @@ import Link from 'next/link'
 import { Minus, Plus, Ticket, TriangleAlert, BadgePercent } from 'lucide-react'
 import type { PublicConfig, PublicEventDetail } from '@/lib/types'
 import { brl } from '@/lib/format'
-import { createSession, bindSession, paySession, authStarted, fetchOccupancy, fetchBuyerSession, quote, type CheckoutBody, type Breakdown } from '@/lib/client'
+import { createSession, bindSession, paySession, authStarted, fetchOccupancy, fetchBuyerSession, quote, type CheckoutBody, type Breakdown, type Attendee } from '@/lib/client'
 import { SeatMap } from './seat-map'
 import { PixWait } from './pix-wait'
 import { CardWait } from './card-wait'
 import { HoldTimer } from './hold-timer'
-import { BuyerLogin } from './buyer-login'
+import { BuyerAccountForm } from './buyer-account-form'
+import { AttendeeForm } from './attendee-form'
 import { Button } from './ui/button'
 
-type Phase = 'form' | 'auth' | 'cpf' | 'pix' | 'done'
+// As etapas seguem a ordem comercial: escolher, se identificar, dizer quem vai, pagar.
+// 'card' existe porque o cartão é pago no ambiente do gateway, e a tela precisa continuar
+// aqui esperando a confirmação.
+type Phase = 'form' | 'account' | 'attendees' | 'pix' | 'card' | 'done'
+
+const STEPS: { key: Phase; label: string }[] = [
+  { key: 'form', label: 'Ingressos' },
+  { key: 'account', label: 'Seus dados' },
+  { key: 'attendees', label: 'Participantes' },
+  { key: 'pix', label: 'Pagamento' },
+]
 
 export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; config: PublicConfig }) {
   const lots = detail.lots ?? []
@@ -57,6 +68,10 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
   const [sessionId, setSessionId] = useState('')
   const [buyerEmail, setBuyerEmail] = useState('')
   const [buyerHasCpf, setBuyerHasCpf] = useState(false)
+  const [buyerName, setBuyerName] = useState('')
+  const [buyerCpf, setBuyerCpf] = useState('')
+  const [attendees, setAttendees] = useState<Attendee[]>([])
+  const [invoiceURL, setInvoiceURL] = useState('')
 
   // Ocupação viva (seated): busca ao montar e atualiza periodicamente (volátil §4.2).
   useEffect(() => {
@@ -169,49 +184,60 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
       return
     }
     setSessionId(data.id)
+    // A sessão pode ter sido retomada com a ficha já preenchida (recarregou a página no
+    // meio): reidrata em vez de fazer a pessoa digitar tudo de novo.
+    const savedAttendees = data?.items?.attendees
+    if (Array.isArray(savedAttendees) && savedAttendees.length) setAttendees(savedAttendees)
+    await loadBuyer()
+  }
+
+  // loadBuyer decide a próxima etapa pelo estado da conta: sem conta, cadastro; com conta,
+  // as fichas dos participantes.
+  async function loadBuyer() {
     const sess = await fetchBuyerSession()
     if (sess.email) setBuyerEmail(sess.email)
+    if (sess.name) setBuyerName(sess.name)
+    if (sess.cpf) setBuyerCpf(sess.cpf)
     setBuyerHasCpf(!!sess.cpf)
-    if (!sess.authed) {
-      setPhase('auth') // a conta é exigida no pagamento; o resumo fica visível
-      return
-    }
-    await completePayment(sess.authed, !!sess.cpf)
+    setPhase(sess.authed ? 'attendees' : 'account')
   }
 
-  // Após o acesso: vincula a sessão (estende a reserva) e segue para o pagamento.
-  async function completePayment(authed = true, hasCpf = false) {
+  // Fecha a compra com a ficha dos participantes. Vincula a sessão (estende a reserva) e
+  // paga; o cartão sai daqui para o ambiente do gateway.
+  async function doPay(list: Attendee[]) {
     if (!sessionId) return
     setError('')
+    setBusy(true)
     const bind = await bindSession(sessionId)
     if (!bind.ok) {
-      backToForm('Sua reserva expirou enquanto você entrava. Refaça a seleção.')
+      setBusy(false)
+      backToForm('Sua reserva expirou enquanto você preenchia. Refaça a seleção.')
       return
     }
-    if (halfQty > 0 && !hasCpf && !cpf) {
-      setPhase('cpf') // meia-entrada exige documento; pedimos uma vez e salvamos na conta
-      return
-    }
-    await doPay()
-  }
-
-  async function doPay() {
-    if (!sessionId) return
-    setBusy(true)
     const { ok, status, data } = await paySession(sessionId, {
       method,
       buyer_cpf: cpf || undefined,
+      attendees: list.length ? list : undefined,
     })
     setBusy(false)
     if (!ok) {
       if (status === 409) {
         backToForm('Sua reserva expirou. Refaça a seleção.')
       } else {
-        setError('Não foi possível concluir o pagamento. Tente novamente.')
+        setError(data?.error || 'Não foi possível concluir o pagamento. Tente novamente.')
+        setPhase('attendees')
       }
       return
     }
     setOrder({ id: data.order_id, pix: data.pix_code })
+    if (method === 'credit_card') {
+      // O cartão é digitado no ambiente do gateway: abre lá e a confirmação chega aqui
+      // pelo acompanhamento do pedido.
+      setInvoiceURL(data.invoice_url ?? '')
+      setPhase('card')
+      if (data.invoice_url) window.open(data.invoice_url, '_blank', 'noopener')
+      return
+    }
     setPhase('pix')
   }
 
@@ -232,34 +258,60 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
     )
   }
 
-  // ── acesso (conta exigida no pagamento; resumo visível ao lado) ──
-  if (phase === 'auth') {
+  // ── cadastro/entrar (a compra exige conta; o resumo do pedido fica visível) ──
+  if (phase === 'account') {
     return (
       <Panel>
-        <div className="mb-4 border-b border-border pb-3">
-          <p className="font-display font-semibold">Seu pedido</p>
-          <div className="mt-1 flex justify-between text-sm">
-            <span className="text-muted-foreground">Ingresso{qty > 1 ? ` (${qty}×)` : ''}</span>
-            <span>{brl(bd ? bd.total_cents : total)}</span>
-          </div>
-        </div>
-        <BuyerLogin onAuthed={() => completePayment(true, buyerHasCpf)} onAuthStarted={() => sessionId && authStarted(sessionId)} />
+        <Steps current="account" />
+        <OrderSummary qty={qty} total={bd ? bd.total_cents : total} />
+        <BuyerAccountForm onReady={loadBuyer} onStarted={() => sessionId && authStarted(sessionId)} />
       </Panel>
     )
   }
 
-  // ── meia-entrada: documento ausente pedido uma vez (gravado na conta) ──
-  if (phase === 'cpf') {
+  // ── participantes (ingresso nominal) ──
+  if (phase === 'attendees') {
     return (
       <Panel>
-        <p className="font-medium">Para meia-entrada, precisamos do seu CPF.</p>
-        <p className="mt-1 text-sm text-muted-foreground">Ele fica salvo na sua conta para as próximas compras.</p>
-        <input value={cpf} onChange={(e) => setCpf(maskCpf(e.target.value))} inputMode="numeric" placeholder="000.000.000-00"
-          className="mt-3 h-11 w-full rounded-lg border border-border bg-card px-3" />
-        {error && <p className="mt-2 rounded-lg bg-destructive/10 p-2 text-sm text-destructive">{error}</p>}
-        <Button size="lg" className="mt-3 w-full" disabled={cpf.replace(/\D/g, '').length !== 11} onClick={doPay}>
-          Confirmar e pagar
-        </Button>
+        <Steps current="attendees" />
+        <HoldTimer seconds={config.hold_ttl_seconds} />
+        <OrderSummary qty={qty} total={bd ? bd.total_cents : total} />
+        {error && <p className="mb-3 rounded-lg bg-destructive/10 p-2 text-sm text-destructive">{error}</p>}
+        <AttendeeForm
+          quantity={qty}
+          buyer={{ name: buyerName, cpf: buyerCpf, email: buyerEmail }}
+          initial={attendees.length ? attendees : undefined}
+          busy={busy}
+          onSubmit={(list) => {
+            setAttendees(list)
+            doPay(list)
+          }}
+        />
+        <button className="mt-3 w-full text-center text-xs text-muted-foreground underline" onClick={() => setPhase('form')}>
+          Voltar e mudar a seleção
+        </button>
+      </Panel>
+    )
+  }
+
+  // ── cartão: pago no ambiente do gateway, confirmação acompanhada aqui ──
+  if (phase === 'card' && order) {
+    return (
+      <Panel>
+        <Steps current="pix" />
+        <HoldTimer seconds={config.hold_ttl_seconds} />
+        <p className="text-sm text-muted-foreground">
+          Abrimos o pagamento seguro em outra aba. Conclua por lá e volte para esta tela — a confirmação
+          aparece aqui automaticamente.
+        </p>
+        {invoiceURL && (
+          <a href={invoiceURL} target="_blank" rel="noopener noreferrer" className="mt-3 block">
+            <Button className="w-full">Abrir pagamento com cartão</Button>
+          </a>
+        )}
+        <div className="mt-4">
+          <CardWait orderId={order.id} onPaid={() => setPhase('done')} />
+        </div>
       </Panel>
     )
   }
@@ -305,6 +357,7 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
   // ── seleção (sem conta — navegar, escolher, ver o total) ──
   return (
     <Panel>
+      <Steps current="form" />
       <div className="flex items-baseline justify-between">
         <p className="font-display text-lg font-semibold">Ingressos</p>
         {currentLot && (
@@ -398,10 +451,10 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
         )}
       </div>
       <Button size="lg" className="mt-3 w-full" disabled={busy || qty < 1} onClick={goToPayment}>
-        {busy ? 'Reservando…' : 'Comprar'}
+        {busy ? 'Reservando…' : 'Continuar'}
       </Button>
       <p className="mt-2 text-center text-xs text-muted-foreground">
-        Você escolhe agora e cria a conta na hora de pagar — sua reserva fica guardada.
+        Reservamos sua escolha enquanto você preenche os dados.
       </p>
     </Panel>
   )
@@ -409,6 +462,47 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
 
 function Panel({ children }: { children: React.ReactNode }) {
   return <div className="rounded-2xl border border-border bg-card p-5">{children}</div>
+}
+
+// Steps mostra onde a pessoa está e quanto falta. Numa compra com quatro telas, sumir com
+// esse mapa é o que faz o comprador achar que travou.
+function Steps({ current }: { current: Phase }) {
+  const idx = STEPS.findIndex((s) => s.key === current)
+  return (
+    <ol className="mb-4 flex items-center gap-1.5 text-xs" aria-label="Etapas da compra">
+      {STEPS.map((s, i) => {
+        const state = i < idx ? 'done' : i === idx ? 'current' : 'todo'
+        return (
+          <li key={s.key} className="flex flex-1 items-center gap-1.5">
+            <span
+              aria-current={state === 'current' ? 'step' : undefined}
+              className={
+                state === 'current'
+                  ? 'font-medium text-foreground'
+                  : state === 'done'
+                    ? 'text-primary'
+                    : 'text-muted-foreground'
+              }
+            >
+              {s.label}
+            </span>
+            {i < STEPS.length - 1 && <span className="h-px flex-1 bg-border" />}
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+// OrderSummary mantém o que está sendo comprado à vista em todas as etapas — o comprador
+// não deveria precisar voltar para lembrar quanto vai pagar.
+function OrderSummary({ qty, total }: { qty: number; total: number }) {
+  return (
+    <div className="mb-4 flex items-baseline justify-between border-b border-border pb-3">
+      <span className="text-sm text-muted-foreground">Ingresso{qty > 1 ? ` (${qty}×)` : ''}</span>
+      <span className="font-display text-lg font-semibold">{brl(total)}</span>
+    </div>
+  )
 }
 
 // Máscara de CPF (000.000.000-00) — melhora a legibilidade e reduz erro de digitação.

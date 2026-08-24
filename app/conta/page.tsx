@@ -4,16 +4,18 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Mail, KeyRound } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
+import { BuyerAccountForm } from '@/components/buyer-account-form'
 import { Button } from '@/components/ui/button'
 import { requestCode, verifyCode } from '@/lib/client'
 
 const RESEND_SECONDS = 60
 
-// Conta do comprador por e-mail + código (OTP). Sem senha. Erro de rede é distinto de
-// "não existe conta" (a resposta do envio é neutra), então só avançamos quando o código
-// realmente saiu; reenvio com espera e expiração visível.
+// Conta do comprador: cadastro e entrada por senha. O código por e-mail continua existindo,
+// mas no papel de saída de emergência — quem esqueceu a senha entra por ele. A resposta do
+// envio é neutra (não revela se há cadastro), então só avançamos quando o pedido saiu.
 export default function ContaPage() {
   const router = useRouter()
+  const [mode, setMode] = useState<'password' | 'code'>('password')
   const [step, setStep] = useState<'email' | 'code'>('email')
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
@@ -56,15 +58,27 @@ export default function ContaPage() {
     <>
       <SiteHeader />
       <main className="mx-auto flex max-w-md flex-col px-4 pt-16">
-        <h1 className="font-display text-2xl font-bold">Entrar na sua conta</h1>
+        <h1 className="font-display text-2xl font-bold">Sua conta</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Use seu e-mail. Enviamos um código de acesso — sem senha para lembrar.
+          Seus ingressos ficam guardados aqui — funcionam até sem sinal no dia do evento.
         </p>
 
-        {step === 'email' ? (
+        {mode === 'password' ? (
+          <div className="mt-6">
+            <BuyerAccountForm onReady={() => router.push('/ingressos')} />
+            <button className="mt-4 w-full text-center text-sm text-muted-foreground underline" onClick={() => setMode('code')}>
+              Esqueci minha senha
+            </button>
+          </div>
+        ) : step === 'email' ? (
           <div className="mt-6 space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Enviamos um código para o seu e-mail e você entra sem a senha.
+            </p>
             <label className="block">
-              <span className="mb-1 flex items-center gap-2 text-sm"><Mail className="size-4" /> E-mail</span>
+              <span className="mb-1 flex items-center gap-2 text-sm">
+                <Mail className="size-4" /> E-mail
+              </span>
               <input
                 type="email"
                 value={email}
@@ -77,6 +91,9 @@ export default function ContaPage() {
             <Button size="lg" className="w-full" disabled={busy || !email} onClick={sendCode}>
               {busy ? 'Enviando…' : 'Enviar código'}
             </Button>
+            <button className="w-full text-center text-sm text-muted-foreground underline" onClick={() => setMode('password')}>
+              Voltar para a senha
+            </button>
           </div>
         ) : (
           <div className="mt-6 space-y-3">
@@ -84,7 +101,9 @@ export default function ContaPage() {
               Se houver conta ou não, enviamos um código para <strong>{email}</strong>. Digite abaixo.
             </p>
             <label className="block">
-              <span className="mb-1 flex items-center gap-2 text-sm"><KeyRound className="size-4" /> Código</span>
+              <span className="mb-1 flex items-center gap-2 text-sm">
+                <KeyRound className="size-4" /> Código
+              </span>
               <input
                 inputMode="numeric"
                 value={code}
@@ -98,17 +117,11 @@ export default function ContaPage() {
               {busy ? 'Verificando…' : 'Entrar'}
             </Button>
             <button
+              className="w-full text-center text-sm text-muted-foreground underline disabled:opacity-50"
+              disabled={resendIn > 0}
               onClick={sendCode}
-              disabled={busy || resendIn > 0}
-              className="w-full text-center text-sm text-muted-foreground disabled:opacity-60"
             >
-              {resendIn > 0 ? `Reenviar código em ${resendIn}s` : 'Reenviar código'}
-            </button>
-            <p className="text-center text-xs text-muted-foreground">
-              O código expira em alguns minutos. Você pode pedir outro quando quiser.
-            </p>
-            <button onClick={() => setStep('email')} className="w-full text-center text-sm text-muted-foreground">
-              Usar outro e-mail
+              {resendIn > 0 ? `Reenviar em ${resendIn}s` : 'Reenviar código'}
             </button>
           </div>
         )}

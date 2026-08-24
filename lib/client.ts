@@ -94,7 +94,54 @@ export async function bindSession(id: string): Promise<{ ok: boolean; status: nu
   return { ok: res.ok, status: res.status }
 }
 
-export async function paySession(id: string, body: { method: string; buyer_cpf?: string }): Promise<{ ok: boolean; status: number; data: any }> {
+// Attendee é a ficha nominal de um ingresso: quem vai usar aquela entrada.
+export type Attendee = { name: string; cpf: string; email?: string }
+
+// Dados do cadastro do comprador. Nome, documento e telefone não são burocracia da tela:
+// é o que o gateway exige para criar a cobrança no nome de alguém.
+export type RegisterBody = {
+  name: string
+  email: string
+  cpf: string
+  phone: string
+  birth_date: string
+  password: string
+}
+
+export async function register(body: RegisterBody): Promise<{ ok: boolean; error: string }> {
+  const res = await fetch('/api/auth/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const data = await j(res)
+  return { ok: res.ok, error: data?.error ?? '' }
+}
+
+export async function login(email: string, password: string): Promise<{ ok: boolean; error: string }> {
+  const res = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  })
+  const data = await j(res)
+  return { ok: res.ok, error: data?.error ?? '' }
+}
+
+// updateSession troca a seleção/ficha da reserva já criada, sem recomeçar o checkout.
+export async function updateSession(
+  id: string,
+  sel: SessionSelection & { attendees?: Attendee[] },
+): Promise<{ ok: boolean; status: number; data: any }> {
+  const res = await fetch(`/api/checkout/sessions/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'X-Anon-Token': anonToken() },
+    body: JSON.stringify(sel),
+  })
+  return { ok: res.ok, status: res.status, data: await j(res) }
+}
+
+export async function paySession(id: string, body: { method: string; buyer_cpf?: string; attendees?: Attendee[] }): Promise<{ ok: boolean; status: number; data: any }> {
   const res = await fetch(`/api/checkout/sessions/${id}/pay`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

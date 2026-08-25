@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Plus, CalendarDays } from 'lucide-react'
 import { ProducerNav } from '@/components/producer-nav'
+import { ReceivingAccount } from '@/components/receiving-account'
 import { Button } from '@/components/ui/button'
 import { pget } from '@/lib/producer'
 import { formatDate, categoryName } from '@/lib/format'
@@ -34,6 +35,9 @@ export default function PainelPage() {
     <>
       <ProducerNav />
       <main className="mx-auto max-w-4xl px-4 pb-20 pt-8">
+        {/* Antes da lista: sem recebimento configurado nada é publicado, e descobrir isso no
+            clique de publicar é tarde. */}
+        <ReceivingAccount />
         <div className="flex items-center justify-between">
           <h1 className="font-display text-2xl font-bold">Seus eventos</h1>
           <Link href="/painel/eventos/novo">

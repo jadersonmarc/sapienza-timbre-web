@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, Plus } from 'lucide-react'
 import { ProducerNav } from '@/components/producer-nav'
+import { ReceivingAccount } from '@/components/receiving-account'
 import { Button } from '@/components/ui/button'
 import { pget, ppost } from '@/lib/producer'
 import { brl, formatDateTime } from '@/lib/format'
@@ -34,10 +35,18 @@ export default function EventoPainelPage({ params }: { params: Promise<{ id: str
   }, [id, router])
 
   useEffect(load, [load])
+  const [needsWallet, setNeedsWallet] = useState(false)
 
   async function lifecycle(action: string) {
     setMsg('')
     const r = await ppost(`events/${id}/${action}`)
+    // Publicar sem conta de recebimento não é erro de evento: é cadastro faltando. Abre o
+    // formulário aqui mesmo, com o motivo, em vez de mandar a pessoa procurar.
+    if (!r.ok && r.data?.needs_wallet) {
+      setNeedsWallet(true)
+      setMsg(r.data.error_message || 'Informe os dados de recebimento antes de publicar.')
+      return
+    }
     setMsg(r.ok ? 'Feito.' : r.data?.error || 'Não foi possível.')
     load()
   }
@@ -64,6 +73,11 @@ export default function EventoPainelPage({ params }: { params: Promise<{ id: str
           </div>
         </div>
         {msg && <p className="mt-3 rounded-lg bg-secondary p-2 text-sm">{msg}</p>}
+        {needsWallet && (
+          <div className="mt-3">
+            <ReceivingAccount onConfigured={() => setNeedsWallet(false)} />
+          </div>
+        )}
         {!published && (
           <p className="mt-3 rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
             Para publicar: ao menos um lote{ev.has_seat_map ? ', um setor com assentos' : ''} e data futura.

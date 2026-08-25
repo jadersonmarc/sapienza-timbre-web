@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { UserRound, Ticket, LogOut } from 'lucide-react'
+import { UserRound, Ticket, Receipt, LogOut } from 'lucide-react'
 import { fetchBuyerSession, logout, clearAnonToken } from '@/lib/client'
 
 // O canto do header que diz se há alguém logado. Sem ele, a pessoa comprava, recebia o
@@ -62,6 +62,9 @@ export function AccountMenu() {
           </Link>
           <Link href="/ingressos" className="flex items-center gap-2 px-3 py-2.5 text-sm hover:bg-secondary" onClick={() => setOpen(false)}>
             <Ticket className="size-4" /> Meus ingressos
+          </Link>
+          <Link href="/pedidos" className="flex items-center gap-2 px-3 py-2.5 text-sm hover:bg-secondary" onClick={() => setOpen(false)}>
+            <Receipt className="size-4" /> Meus pedidos
           </Link>
           <button
             onClick={async () => {

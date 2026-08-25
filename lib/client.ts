@@ -267,6 +267,30 @@ export async function fetchBuyerSession(): Promise<{
 }
 
 // ── meus ingressos ─────────────────────────────────────────────────────────────
+export type MyOrder = {
+  order_id: string
+  event_id: string
+  event_title: string
+  event_starts_at?: string
+  ticket_count: number
+  face_cents: number
+  fee_cents: number
+  total_cents: number
+  method: string
+  installments: number
+  status: string
+  created_at: string
+  paid_at?: string
+  refunded_at?: string
+}
+
+export async function fetchMyOrders(): Promise<{ authed: boolean; orders: MyOrder[] }> {
+  const res = await fetch('/api/me/orders')
+  if (!res.ok) return { authed: false, orders: [] }
+  const body = await j(res)
+  return { authed: true, orders: body.orders ?? [] }
+}
+
 export async function fetchMyTickets() {
   const res = await fetch('/api/me/tickets')
   if (res.status === 401) return { authed: false, tickets: [] }

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Ticket, ShieldCheck, AlertCircle, LogOut, Trash2 } from 'lucide-react'
+import { Ticket, Receipt, ShieldCheck, AlertCircle, LogOut, Trash2 } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { Button } from '@/components/ui/button'
 import { maskCpf, maskPhone } from '@/components/buyer-account-form'
@@ -131,6 +131,14 @@ export default function MinhaContaPage() {
           <span>
             <span className="block font-medium">Meus ingressos</span>
             <span className="block text-sm text-muted-foreground">Abrem sem sinal no dia do evento.</span>
+          </span>
+        </Link>
+
+        <Link href="/pedidos" className="mt-3 flex items-center gap-3 rounded-xl border border-border bg-card p-4 hover:border-primary">
+          <Receipt className="size-5 text-primary" />
+          <span>
+            <span className="block font-medium">Meus pedidos</span>
+            <span className="block text-sm text-muted-foreground">O que você comprou e quanto pagou.</span>
           </span>
         </Link>
 

@@ -5,91 +5,82 @@ import { Wallet, TriangleAlert, CheckCircle2 } from 'lucide-react'
 import { pget, ppost } from '@/lib/producer'
 import { Button } from './ui/button'
 
-// Onde o dinheiro das vendas cai. Enquanto não estiver preenchido, o produtor não consegue
-// publicar — e é melhor ele descobrir aqui, montando o evento, do que no clique de publicar.
+const KEY_TYPES = [
+  { value: 'cpf', label: 'CPF' },
+  { value: 'cnpj', label: 'CNPJ' },
+  { value: 'email', label: 'E-mail' },
+  { value: 'phone', label: 'Celular' },
+  { value: 'random', label: 'Chave aleatória' },
+]
+
+// Para onde vai o dinheiro do produtor. Enquanto isso não estiver preenchido ele monta
+// eventos mas não publica — e é melhor descobrir aqui do que no clique de publicar.
 //
-// Dois caminhos: quem já tem conta no Asaas informa o identificador dela; quem não tem abre
-// a conta por aqui mesmo, com os dados que o banco exige para saber de quem é o dinheiro.
+// Pedimos só a chave Pix: a venda entra na plataforma e a parte dele é transferida depois,
+// pelo valor que o razão já calcula. O caminho de conta própria no gateway (divisão
+// automática na venda) continua no backend e entra quando fizer sentido — cobrar abertura
+// de conta de quem ainda vai fazer o primeiro evento afugenta antes de provar o produto.
 export function ReceivingAccount({ onConfigured }: { onConfigured?: () => void }) {
-  const [configured, setConfigured] = useState<boolean | null>(null)
+  const [status, setStatus] = useState<{
+    configured: boolean
+    mode: string
+    pix_key?: string
+    holder_name?: string
+  } | null>(null)
   const [open, setOpen] = useState(false)
-  const [mode, setMode] = useState<'create' | 'existing'>('create')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [done, setDone] = useState('')
 
-  const [walletId, setWalletId] = useState('')
-  const [f, setF] = useState({
-    legal_name: '',
-    tax_id: '',
-    email: '',
-    mobile_phone: '',
-    birth_date: '',
-    company_type: 'MEI',
-    income: '',
-    postal_code: '',
-    address: '',
-    address_number: '',
-    province: '',
-  })
+  const [f, setF] = useState({ pix_key: '', pix_key_type: 'cpf', holder_name: '', holder_tax_id: '' })
   const set = (k: keyof typeof f) => (v: string) => setF((p) => ({ ...p, [k]: v }))
 
+  async function load() {
+    const r = await pget('producer/payout-account')
+    if (r.ok) {
+      setStatus(r.data)
+      if (r.data.holder_name) setF((p) => ({ ...p, holder_name: r.data.holder_name }))
+    }
+  }
   useEffect(() => {
-    pget('producer/receiving-account').then((r) => r.ok && setConfigured(!!r.data.configured))
+    load()
   }, [])
-
-  const taxDigits = f.tax_id.replace(/\D/g, '')
-  const isCompany = taxDigits.length > 11
 
   async function submit() {
     setError('')
-    setDone('')
     setBusy(true)
-    const body =
-      mode === 'existing'
-        ? { wallet_id: walletId.trim() }
-        : {
-            legal_name: f.legal_name,
-            tax_id: taxDigits,
-            email: f.email,
-            mobile_phone: f.mobile_phone.replace(/\D/g, ''),
-            birth_date: isCompany ? '' : f.birth_date,
-            company_type: isCompany ? f.company_type : '',
-            income_cents: Math.round(parseFloat(f.income.replace(/\./g, '').replace(',', '.') || '0') * 100),
-            postal_code: f.postal_code.replace(/\D/g, ''),
-            address: f.address,
-            address_number: f.address_number,
-            province: f.province,
-          }
-    const r = await ppost('producer/receiving-account', body)
+    const r = await ppost('producer/payout-account', {
+      ...f,
+      pix_key: f.pix_key.trim(),
+      holder_tax_id: f.holder_tax_id.replace(/\D/g, ''),
+    })
     setBusy(false)
     if (!r.ok) {
-      setError(r.data?.error || 'Não foi possível salvar os dados de recebimento.')
+      setError(r.data?.error || 'Não foi possível salvar os dados de repasse.')
       return
     }
-    setConfigured(true)
+    await load()
     setOpen(false)
-    setDone(
-      r.data.created
-        ? 'Conta de recebimento criada. Você vai receber um e-mail do Asaas para acessá-la e concluir a verificação de documentos — ela é necessária para sacar.'
-        : 'Conta de recebimento registrada.',
-    )
     onConfigured?.()
   }
 
-  if (configured === null) return null
+  if (!status) return null
 
-  if (configured && !open) {
+  if (status.configured && !open) {
     return (
       <div className="mb-6 rounded-xl border border-border bg-card p-4">
         <p className="flex items-center gap-2 text-sm">
           <CheckCircle2 className="size-4 text-primary" />
-          Recebimento configurado.
+          {status.mode === 'split' ? (
+            <>Recebimento direto configurado.</>
+          ) : (
+            <>
+              Repasse por Pix para <span className="font-medium text-foreground">{status.pix_key}</span>
+            </>
+          )}
           <button className="ml-auto text-xs text-muted-foreground underline" onClick={() => setOpen(true)}>
             alterar
           </button>
         </p>
-        {done && <p className="mt-2 text-xs text-muted-foreground">{done}</p>}
       </div>
     )
   }
@@ -101,11 +92,11 @@ export function ReceivingAccount({ onConfigured }: { onConfigured?: () => void }
           <TriangleAlert className="size-4" /> Falta dizer para onde vai o seu dinheiro
         </p>
         <p className="mt-1 text-sm text-muted-foreground">
-          Você pode montar seus eventos normalmente, mas para publicá-los precisamos da sua conta de
-          recebimento — é nela que cai a sua parte de cada venda, automaticamente.
+          Você pode montar seus eventos agora, mas para publicá-los precisamos da sua chave Pix — é
+          para ela que transferimos a sua parte das vendas.
         </p>
         <Button className="mt-3" onClick={() => setOpen(true)}>
-          <Wallet className="size-4" /> Configurar recebimento
+          <Wallet className="size-4" /> Informar chave Pix
         </Button>
       </div>
     )
@@ -113,59 +104,31 @@ export function ReceivingAccount({ onConfigured }: { onConfigured?: () => void }
 
   return (
     <div className="mb-6 rounded-xl border border-border bg-card p-4">
-      <p className="font-display text-lg font-semibold">Dados de recebimento</p>
-      <div className="mt-3 flex gap-2">
-        <Tab active={mode === 'create'} onClick={() => setMode('create')}>
-          Abrir conta
-        </Tab>
-        <Tab active={mode === 'existing'} onClick={() => setMode('existing')}>
-          Já tenho conta Asaas
-        </Tab>
-      </div>
+      <p className="font-display text-lg font-semibold">Dados de repasse</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        A chave precisa ser do mesmo titular do documento — é assim que fica registrado de quem é o
+        dinheiro.
+      </p>
 
-      {mode === 'existing' ? (
-        <div className="mt-4">
-          <Field label="Wallet ID da sua conta Asaas" value={walletId} onChange={setWalletId} placeholder="00000000-0000-0000-0000-000000000000" />
-          <p className="mt-1 text-xs text-muted-foreground">
-            Está no painel do Asaas, em Integrações. É o identificador da conta que vai receber.
-          </p>
-        </div>
-      ) : (
-        <>
-          <p className="mt-3 text-sm text-muted-foreground">
-            Abrimos a conta para você. Estes dados são exigidos por lei para o banco saber de quem é o
-            dinheiro — a conta fica no seu nome e o acesso é seu.
-          </p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <Field label="Nome ou razão social" value={f.legal_name} onChange={set('legal_name')} />
-            <Field label="CPF ou CNPJ" value={f.tax_id} onChange={set('tax_id')} inputMode="numeric" />
-            {isCompany ? (
-              <label className="block">
-                <span className="mb-1 block text-sm text-muted-foreground">Tipo de empresa</span>
-                <select
-                  value={f.company_type}
-                  onChange={(e) => set('company_type')(e.target.value)}
-                  className="h-11 w-full rounded-lg border border-border bg-card px-3 text-sm"
-                >
-                  <option value="MEI">MEI</option>
-                  <option value="LIMITED">Limitada</option>
-                  <option value="INDIVIDUAL">Empresário individual</option>
-                  <option value="ASSOCIATION">Associação</option>
-                </select>
-              </label>
-            ) : (
-              <Field label="Data de nascimento" value={f.birth_date} onChange={set('birth_date')} type="date" />
-            )}
-            <Field label="E-mail financeiro" value={f.email} onChange={set('email')} type="email" />
-            <Field label="Celular" value={f.mobile_phone} onChange={set('mobile_phone')} inputMode="numeric" />
-            <Field label="Faturamento mensal (R$)" value={f.income} onChange={set('income')} inputMode="decimal" placeholder="5000,00" />
-            <Field label="CEP" value={f.postal_code} onChange={set('postal_code')} inputMode="numeric" />
-            <Field label="Endereço" value={f.address} onChange={set('address')} />
-            <Field label="Número" value={f.address_number} onChange={set('address_number')} inputMode="numeric" />
-            <Field label="Bairro" value={f.province} onChange={set('province')} />
-          </div>
-        </>
-      )}
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className="block">
+          <span className="mb-1 block text-sm text-muted-foreground">Tipo de chave</span>
+          <select
+            value={f.pix_key_type}
+            onChange={(e) => set('pix_key_type')(e.target.value)}
+            className="h-11 w-full rounded-lg border border-border bg-card px-3 text-sm"
+          >
+            {KEY_TYPES.map((k) => (
+              <option key={k.value} value={k.value}>
+                {k.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <Field label="Chave Pix" value={f.pix_key} onChange={set('pix_key')} />
+        <Field label="Nome do titular" value={f.holder_name} onChange={set('holder_name')} />
+        <Field label="CPF/CNPJ do titular" value={f.holder_tax_id} onChange={set('holder_tax_id')} inputMode="numeric" />
+      </div>
 
       {error && <p className="mt-3 rounded-lg bg-destructive/10 p-2 text-sm text-destructive">{error}</p>}
 
@@ -173,22 +136,13 @@ export function ReceivingAccount({ onConfigured }: { onConfigured?: () => void }
         <Button disabled={busy} onClick={submit}>
           {busy ? 'Salvando…' : 'Salvar'}
         </Button>
-        <Button variant="outline" onClick={() => setOpen(false)}>
-          Cancelar
-        </Button>
+        {status.configured && (
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancelar
+          </Button>
+        )}
       </div>
     </div>
-  )
-}
-
-function Tab({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex-1 rounded-lg border px-3 py-2 text-sm ${active ? 'border-primary bg-primary/10 font-medium' : 'border-border text-muted-foreground'}`}
-    >
-      {children}
-    </button>
   )
 }
 

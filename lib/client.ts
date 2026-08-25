@@ -120,6 +120,12 @@ export async function updateMe(body: Omit<RegisterBody, 'email' | 'password'>): 
   return { ok: res.ok, error: data?.error ?? '' }
 }
 
+// deleteAccount apaga a conta e derruba a sessão (LGPD).
+export async function deleteAccount(): Promise<boolean> {
+  const res = await fetch('/api/me', { method: 'DELETE' })
+  return res.ok
+}
+
 export async function register(body: RegisterBody): Promise<{ ok: boolean; error: string }> {
   const res = await fetch('/api/auth/register', {
     method: 'POST',

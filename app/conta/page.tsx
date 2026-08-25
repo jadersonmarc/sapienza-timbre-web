@@ -6,7 +6,7 @@ import { Mail, KeyRound } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { BuyerAccountForm } from '@/components/buyer-account-form'
 import { Button } from '@/components/ui/button'
-import { requestCode, resetPassword } from '@/lib/client'
+import { requestCode, resetPassword, fetchBuyerSession } from '@/lib/client'
 
 const RESEND_SECONDS = 60
 
@@ -23,6 +23,11 @@ export default function ContaPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [resendIn, setResendIn] = useState(0)
+
+  // Já logado não deveria ver tela de entrar: manda para a área da conta.
+  useEffect(() => {
+    fetchBuyerSession().then((s) => s.authed && router.replace('/minha-conta'))
+  }, [router])
 
   useEffect(() => {
     if (resendIn <= 0) return

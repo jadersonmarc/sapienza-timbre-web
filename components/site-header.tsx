@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Ticket } from 'lucide-react'
 import { ThemeToggle } from './theme-toggle'
+import { AccountMenu } from './account-menu'
 
 // Chrome mínimo: a marca recua, a imagem do evento manda (§6). Header enxuto e fixo.
 export function SiteHeader() {
@@ -15,9 +16,7 @@ export function SiteHeader() {
           <Link href="/eventos" className="rounded-lg px-3 py-2 hover:bg-secondary">
             Eventos
           </Link>
-          <Link href="/ingressos" className="rounded-lg px-3 py-2 hover:bg-secondary">
-            Meus ingressos
-          </Link>
+          <AccountMenu />
           <ThemeToggle />
         </nav>
       </div>

@@ -122,11 +122,11 @@ export default function IngressosPage() {
             <Ticket className="mx-auto size-8 text-muted-foreground" />
             <h2 className="mt-3 font-display font-semibold">Seus ingressos ficam aqui</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Entre com seu e-mail para ver seus ingressos.
+              Entre na sua conta para ver seus ingressos.
             </p>
             <div className="mt-5 space-y-2">
               <Link href="/conta" className="block">
-                <Button className="w-full">Entrar com e-mail</Button>
+                <Button className="w-full">Entrar</Button>
               </Link>
               <Link href="/eventos" className="block">
                 <Button variant="outline" className="w-full">Ver eventos</Button>

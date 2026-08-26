@@ -13,6 +13,7 @@ const LINKS = [
   { href: '/admin/artistas', label: 'Artistas' },
   { href: '/admin/eventos', label: 'Eventos' },
   { href: '/admin/moderation', label: 'Moderação' },
+  { href: '/admin/contas', label: 'Contas' },
   { href: '/admin/repasses', label: 'Repasses' },
   { href: '/admin/relatorios', label: 'Relatórios' },
 ]

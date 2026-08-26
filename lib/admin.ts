@@ -36,3 +36,4 @@ export async function asend(method: string, path: string, body?: unknown) {
 }
 export const apost = (path: string, body?: unknown) => asend('POST', path, body)
 export const apatch = (path: string, body?: unknown) => asend('PATCH', path, body)
+export const aput = (path: string, body?: unknown) => asend('PUT', path, body)

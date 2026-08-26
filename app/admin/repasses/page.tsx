@@ -2,11 +2,31 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, Copy, Check } from 'lucide-react'
+import { AlertTriangle, Copy, Check, ShieldAlert } from 'lucide-react'
 import { AdminNav } from '@/components/admin-nav'
 import { Button } from '@/components/ui/button'
 import { aget, apost } from '@/lib/admin'
 import { brl, formatDate } from '@/lib/format'
+
+type Split = {
+  producer_id: string
+  producer_name: string
+  order_id: string
+  event_title: string
+  face_cents: number
+  payment_method: string
+  installments: number
+  split_status: string
+  refusal_reason?: string
+  asaas_payment_id?: string
+  updated_at: string
+}
+
+const SPLIT_ESTADO: Record<string, string> = {
+  BLOCKED: 'Bloqueado por divergência — há prazo para ajustar',
+  CANCELLED: 'Cancelado pelo gateway — resolução manual',
+  REFUSED: 'Recusado pelo gateway',
+}
 
 type Due = {
   producer_id: string
@@ -31,8 +51,10 @@ export default function RepassesPage() {
   const [rows, setRows] = useState<Due[] | null>(null)
   const [total, setTotal] = useState(0)
   const [copied, setCopied] = useState('')
+  const [splits, setSplits] = useState<Split[]>([])
 
   const load = useCallback(() => {
+    aget('splits').then((r) => r.ok && setSplits(r.data.splits ?? []))
     aget('payouts').then((r) => {
       if (r.status === 401) return router.replace('/admin/entrar')
       setRows(r.data.producers ?? [])
@@ -70,6 +92,36 @@ export default function RepassesPage() {
           <p className="mt-3 text-sm">
             Aguardando transferência: <span className="font-medium">{brl(total)}</span>
           </p>
+        )}
+
+        {/* Repasses que o gateway não conseguiu concluir. A cobrança é criada semanas antes
+            de ser paga: se a tabela de tarifas mudar nesse intervalo, um split que passou na
+            criação pode divergir na liquidação. É esperado — mas tem prazo. */}
+        {splits.length > 0 && (
+          <section className="mt-6">
+            <h2 className="flex items-center gap-2 font-display text-lg font-semibold">
+              <ShieldAlert className="size-5 text-destructive" /> Repasses travados no gateway
+            </h2>
+            <ul className="mt-3 space-y-2">
+              {splits.map((s) => (
+                <li key={s.order_id} className="rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="font-medium">
+                      {s.producer_name} · {s.event_title}
+                    </span>
+                    <span>{brl(s.face_cents)}</span>
+                  </div>
+                  <p className="mt-1 text-xs">{SPLIT_ESTADO[s.split_status] ?? s.split_status}</p>
+                  {s.refusal_reason && (
+                    <p className="mt-1 break-words text-xs text-muted-foreground">{s.refusal_reason}</p>
+                  )}
+                  {s.asaas_payment_id && (
+                    <p className="mt-1 font-mono text-xs text-muted-foreground">{s.asaas_payment_id}</p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
 
         {rows === null && <p className="mt-8 text-sm text-muted-foreground">Carregando…</p>}

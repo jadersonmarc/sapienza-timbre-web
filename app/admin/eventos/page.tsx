@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { AdminNav } from '@/components/admin-nav'
 import { Button } from '@/components/ui/button'
 import { aget, apost } from '@/lib/admin'
+import { LineupEditor } from '@/components/lineup-editor'
 
 type Ev = { producer_id: string; producer: string; event_id: string; title: string; category: string; status: string }
 
@@ -16,6 +17,8 @@ const STATUS: Record<string, string> = {
 export default function EventosPage() {
   const router = useRouter()
   const [events, setEvents] = useState<Ev[] | null>(null)
+  // Line-up aberto por evento: a lista fica enxuta e o rateio aparece sob demanda.
+  const [aberto, setAberto] = useState('')
 
   function load() {
     aget('events').then((r) => {
@@ -40,17 +43,27 @@ export default function EventosPage() {
           {events === null && <p className="text-muted-foreground">Carregando…</p>}
           {events?.length === 0 && <p className="text-muted-foreground">Nenhum evento.</p>}
           {events?.map((e) => (
-            <div key={e.event_id} className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3">
-              <div>
-                <p className="font-medium">{e.title}</p>
-                <p className="text-sm text-muted-foreground">{e.producer} · {e.category}</p>
+            <div key={e.event_id} className="rounded-xl border border-border bg-card px-4 py-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">{e.title}</p>
+                  <p className="text-sm text-muted-foreground">{e.producer} · {e.category}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="rounded-full bg-secondary px-3 py-1 text-xs">{STATUS[e.status] ?? e.status}</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAberto(aberto === e.event_id ? '' : e.event_id)}
+                  >
+                    Line-up
+                  </Button>
+                  {e.status === 'published' && (
+                    <Button variant="outline" size="sm" onClick={() => suspend(e)}>Suspender</Button>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="rounded-full bg-secondary px-3 py-1 text-xs">{STATUS[e.status] ?? e.status}</span>
-                {e.status === 'published' && (
-                  <Button variant="outline" size="sm" onClick={() => suspend(e)}>Suspender</Button>
-                )}
-              </div>
+              {aberto === e.event_id && <LineupEditor producerId={e.producer_id} eventId={e.event_id} />}
             </div>
           ))}
         </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Search, ShieldAlert } from 'lucide-react'
 import { AdminNav } from '@/components/admin-nav'
 import { Button } from '@/components/ui/button'
@@ -23,6 +23,18 @@ type Sale = {
   refund_request_status?: string
 }
 
+type FailedJob = {
+  job_id: string
+  producer_id: string
+  producer_name: string
+  event_title: string
+  order_id: string
+  buyer_email: string
+  total_cents: number
+  attempts: number
+  last_error: string
+}
+
 type Debtor = {
   producer_id: string
   producer_name: string
@@ -43,13 +55,19 @@ export default function AdminDevolucoesPage() {
   const [sales, setSales] = useState<Sale[] | null>(null)
   const [busy, setBusy] = useState(false)
   const [debtors, setDebtors] = useState<Debtor[]>([])
+  const [failed, setFailed] = useState<FailedJob[]>([])
 
-  useEffect(() => {
+  const loadQueues = useCallback(() => {
     aget('payouts').then((r) => {
       const list: Debtor[] = (r.data?.producers ?? []).filter((p: Debtor) => (p.debt_cents ?? 0) > 0)
       setDebtors(list)
     })
+    aget('refund-jobs/failed').then((r) => setFailed(r.data?.failed ?? []))
   }, [])
+
+  useEffect(() => {
+    loadQueues()
+  }, [loadQueues])
 
   async function search(e: React.FormEvent) {
     e.preventDefault()
@@ -90,6 +108,23 @@ export default function AdminDevolucoesPage() {
                     {brl(d.debt_cents)}
                   </span>
                 </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {failed.length > 0 && (
+          <section className="mt-10">
+            <h2 className="font-display text-lg font-semibold">
+              Devoluções travadas <span className="text-destructive">({failed.length})</span>
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Cancelamentos de evento cuja devolução esgotou as tentativas. Dinheiro que não
+              voltou: cada linha é uma pessoa esperando.
+            </p>
+            <ul className="mt-3 space-y-2">
+              {failed.map((f) => (
+                <FailedCard key={f.job_id} job={f} onDone={loadQueues} />
               ))}
             </ul>
           </section>
@@ -208,6 +243,41 @@ function AdminSaleCard({ sale, onDone }: { sale: Sale; onDone: () => void }) {
           </p>
         </div>
       )}
+    </li>
+  )
+}
+
+/**
+ * FailedCard é uma devolução que travou. O motivo fica à vista porque é ele que diz o que
+ * resolver antes de tentar de novo — saldo na conta do produtor, cadastro do comprador,
+ * gateway fora do ar.
+ */
+function FailedCard({ job, onDone }: { job: FailedJob; onDone: () => void }) {
+  const [busy, setBusy] = useState(false)
+
+  async function retry() {
+    setBusy(true)
+    await apost(`producers/${job.producer_id}/refund-jobs/${job.job_id}/retry`)
+    setBusy(false)
+    onDone()
+  }
+
+  return (
+    <li className="rounded-xl border border-destructive/40 bg-destructive/5 p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className="font-medium">{job.buyer_email || 'comprador sem e-mail'}</span>
+        <span className="text-sm">{brl(job.total_cents)}</span>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {job.producer_name} · {job.event_title} · {job.attempts}{' '}
+        {job.attempts === 1 ? 'tentativa' : 'tentativas'}
+      </p>
+      <p className="mt-2 break-words rounded-lg bg-background p-2 font-mono text-xs">
+        {job.last_error}
+      </p>
+      <Button variant="outline" onClick={retry} disabled={busy} className="mt-3">
+        {busy ? 'Reenfileirando…' : 'Tentar de novo'}
+      </Button>
     </li>
   )
 }

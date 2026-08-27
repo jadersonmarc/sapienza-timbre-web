@@ -88,6 +88,7 @@ export default function EventoPainelPage({ params }: { params: Promise<{ id: str
         <Sectors eventId={id} sectors={sectors} hasSeatMap={ev.has_seat_map} onChange={load} />
         {sectors.length > 0 && lots.length > 0 && <Prices lots={lots} sectors={sectors} />}
         <Courtesies eventId={id} lots={lots} />
+        {ev.status === 'cancelled' && <CancellationProgress eventId={id} />}
         <Sales eventId={id} />
         <Fechamento eventId={id} />
         <Notificacoes eventId={id} />
@@ -394,5 +395,52 @@ function ReanchorButton({ eventId, attestationId, onDone }: { eventId: string; a
       </Button>
       {msg && <span className="text-xs text-muted-foreground">{msg}</span>}
     </span>
+  )
+}
+
+/**
+ * Andamento da devolução do cancelamento.
+ *
+ * Cancelar enfileira uma devolução por pedido; o produtor precisa ver o lote andar em vez de
+ * ficar no escuro achando que nada aconteceu. Falha que esgotou as tentativas é resolvida
+ * pela plataforma — dizer isso aqui evita o produtor ficar tentando de novo sozinho.
+ */
+function CancellationProgress({ eventId }: { eventId: string }) {
+  const [p, setP] = useState<{ total: number; done: number; failed: number; pending: number } | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    const tick = () =>
+      pget(`events/${eventId}/cancellation`).then((r) => {
+        if (alive && r.ok) setP(r.data)
+      })
+    tick()
+    // Enquanto houver pendente, o lote está andando: vale acompanhar sem recarregar a tela.
+    const t = setInterval(tick, 5000)
+    return () => {
+      alive = false
+      clearInterval(t)
+    }
+  }, [eventId])
+
+  if (!p || p.total === 0) return null
+  const pct = Math.round((p.done / p.total) * 100)
+  return (
+    <Section title="Devolução do cancelamento">
+      <p className="text-sm text-muted-foreground">
+        {p.done} de {p.total} {p.total === 1 ? 'compra devolvida' : 'compras devolvidas'}
+        {p.pending > 0 && <> · {p.pending} em andamento</>}
+        {p.failed > 0 && <> · <span className="text-destructive">{p.failed} com problema</span></>}
+      </p>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary">
+        <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+      </div>
+      {p.failed > 0 && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          As devoluções com problema estão na fila da plataforma, que resolve uma a uma. Você
+          não precisa tentar de novo.
+        </p>
+      )}
+    </Section>
   )
 }

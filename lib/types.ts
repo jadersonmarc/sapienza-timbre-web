@@ -19,6 +19,10 @@ export type PublicLot = {
   starts_at?: string
   ends_at?: string
   sort_order: number
+  // Faixa de quantidade por compra. Mín. e máx. iguais a 2 é o "ingresso duplo"; o preço
+  // acima é o UNITÁRIO, e o total é preço × quantidade.
+  min_purchase_quantity: number
+  max_purchase_quantity?: number | null
 }
 
 export type PublicSeat = {
@@ -65,6 +69,9 @@ export type PublicEventDetail = {
   lots: PublicLot[]
   current_lot_id?: string
   sectors: PublicSector[]
+  // Cota de meia-entrada. A Lei 12.933/2013, art. 1º, §1º obriga a informar a
+  // disponibilidade de meia em todos os pontos de venda.
+  half_price: { available: boolean; quota: number; granted: number; remaining: number }
 }
 
 export type PublicConfig = {

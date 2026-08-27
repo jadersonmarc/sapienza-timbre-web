@@ -53,7 +53,12 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
     [currentLot, seatSector, sectors],
   )
 
+  // A faixa de quantidade do lote (combo duplo, trio, grupo). O seletor trava nela, e a
+  // recusa definitiva continua no servidor — travar a UI não é garantia de nada.
+  const minQty = currentLot?.min_purchase_quantity ?? 1
+  const maxQty = currentLot?.max_purchase_quantity ?? undefined
   const [quantity, setQuantity] = useState(1)
+
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [halfQty, setHalfQty] = useState(0)
   const [coupon, setCoupon] = useState('')
@@ -152,6 +157,15 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
 
   const soldOut = !currentLot || (currentLot?.available ?? 0) <= 0
   const available = currentLot?.available ?? 0
+
+  // O lote pode virar (por data ou esgotamento) com a tela aberta: a quantidade acompanha
+  // a faixa do lote vigente em vez de ficar num valor que o servidor vai recusar.
+  useEffect(() => {
+    setQuantity((q) => {
+      const teto = Math.min(maxQty ?? Infinity, available || Infinity)
+      return Math.max(minQty, Math.min(Math.max(q, minQty), teto))
+    })
+  }, [minQty, maxQty, available])
 
   // Reseta para o formulário, liberando a sessão/reserva (refazer a seleção).
   function backToForm(msg: string) {
@@ -425,21 +439,37 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
         </div>
       ) : (
         <div className="mt-4 flex items-center justify-between rounded-lg border border-border p-3">
-          <span className="text-sm">Quantidade</span>
+          <span className="text-sm">
+            Quantidade
+            {minQty > 1 && (
+              <span className="mt-0.5 block text-xs text-muted-foreground">
+                {maxQty === minQty
+                  ? `Este ingresso é vendido em ${minQty} — o preço mostrado é por pessoa.`
+                  : `Mínimo de ${minQty} por compra.`}
+              </span>
+            )}
+          </span>
           <div className="flex items-center gap-3">
-            <button aria-label="Diminuir" onClick={() => setQuantity((q) => Math.max(1, q - 1))} className="flex size-9 items-center justify-center rounded-md border border-border">
+            <button aria-label="Diminuir" disabled={quantity <= minQty} onClick={() => setQuantity((q) => Math.max(minQty, q - 1))} className="flex size-9 items-center justify-center rounded-md border border-border disabled:opacity-40">
               <Minus className="size-4" />
             </button>
             <span className="w-6 text-center font-medium">{quantity}</span>
-            <button aria-label="Aumentar" onClick={() => setQuantity((q) => Math.min(available, q + 1))} className="flex size-9 items-center justify-center rounded-md border border-border">
+            <button aria-label="Aumentar" disabled={maxQty !== undefined && quantity >= maxQty} onClick={() => setQuantity((q) => Math.min(Math.min(maxQty ?? available, available), q + 1))} className="flex size-9 items-center justify-center rounded-md border border-border disabled:opacity-40">
               <Plus className="size-4" />
             </button>
           </div>
         </div>
       )}
 
-      {/* Meia-entrada (exigência explicada ANTES — §4.3). */}
-      {qty > 0 && (
+      {/* Meia-entrada (exigência explicada ANTES — §4.3). Some quando a cota do evento
+          acaba: a inteira continua, e oferecer o que não existe mais só gera recusa. */}
+      {qty > 0 && detail.half_price?.available === false && (
+        <p className="mt-3 rounded-lg border border-border p-3 text-xs text-muted-foreground">
+          A cota de meia-entrada deste evento acabou. Os ingressos inteiros seguem
+          disponíveis.
+        </p>
+      )}
+      {qty > 0 && detail.half_price?.available !== false && (
         <label className="mt-3 block text-sm">
           <span className="text-muted-foreground">Meia-entrada (quantidade)</span>
           <input

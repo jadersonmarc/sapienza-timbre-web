@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { pget, ppost } from '@/lib/producer'
 import { brl, formatDateTime } from '@/lib/format'
 
-type Lot = { id: string; name: string; price_cents: number; quantity: number; sold_count: number; held_count: number; sort_order: number }
+type Lot = { id: string; name: string; price_cents: number; quantity: number; sold_count: number; held_count: number; sort_order: number; min_purchase_quantity: number; max_purchase_quantity?: number | null }
 type Sector = { id: string; name: string; kind: string }
 type Ev = { id: string; title: string; status: string; starts_at?: string; has_seat_map: boolean }
 
@@ -107,16 +107,25 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function Lots({ eventId, lots, onChange }: { eventId: string; lots: Lot[]; onChange: () => void }) {
-  const [f, setF] = useState({ name: '', price: '', quantity: '' })
+  const [f, setF] = useState({ name: '', price: '', quantity: '', min: '1', max: '' })
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const minQ = parseInt(f.min) || 1
+  const maxQ = f.max.trim() === '' ? null : parseInt(f.max) || 0
   async function add() {
     setBusy(true)
-    await ppost(`events/${eventId}/lots`, {
+    setError('')
+    const res = await ppost(`events/${eventId}/lots`, {
       name: f.name, price_cents: Math.round(parseFloat(f.price.replace(',', '.')) * 100) || 0,
       quantity: parseInt(f.quantity) || 0, sort_order: lots.length,
+      min_purchase_quantity: minQ, max_purchase_quantity: maxQ,
     })
     setBusy(false)
-    setF({ name: '', price: '', quantity: '' })
+    if (!res.ok) {
+      setError(res.data?.error ?? 'não foi possível criar o lote')
+      return
+    }
+    setF({ name: '', price: '', quantity: '', min: '1', max: '' })
     onChange()
   }
   return (
@@ -125,7 +134,10 @@ function Lots({ eventId, lots, onChange }: { eventId: string; lots: Lot[]; onCha
         {lots.map((l) => (
           <div key={l.id} className="flex items-center justify-between rounded-lg border border-border bg-card p-3 text-sm">
             <span className="font-medium">{l.name}</span>
-            <span className="text-muted-foreground">{brl(l.price_cents)} · {l.sold_count}/{l.quantity} vendidos</span>
+            <span className="text-muted-foreground">
+              {brl(l.price_cents)} · {l.sold_count}/{l.quantity} vendidos
+              {l.min_purchase_quantity > 1 && <> · {comboLabel(l.min_purchase_quantity, l.max_purchase_quantity)}</>}
+            </span>
           </div>
         ))}
       </div>
@@ -134,6 +146,36 @@ function Lots({ eventId, lots, onChange }: { eventId: string; lots: Lot[]; onCha
         <input placeholder="Preço R$" inputMode="decimal" value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} className={inp} />
         <input placeholder="Qtd" inputMode="numeric" value={f.quantity} onChange={(e) => setF({ ...f, quantity: e.target.value })} className={inp} />
         <Button size="sm" disabled={busy || !f.name} onClick={add}><Plus className="size-4" /> Lote</Button>
+      </div>
+
+      <div className="mt-3 rounded-lg border border-border bg-card p-3">
+        <p className="text-sm font-medium">Quantidade por compra</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Deixe 1 para venda avulsa. Mínimo e máximo iguais a 2 é o ingresso duplo — e o
+          mesmo vale para trio ou grupo.
+        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <label className="text-xs text-muted-foreground">
+            Mín.
+            <input inputMode="numeric" value={f.min} onChange={(e) => setF({ ...f, min: e.target.value })}
+              className={`${inp} ml-1 w-16`} />
+          </label>
+          <label className="text-xs text-muted-foreground">
+            Máx.
+            <input inputMode="numeric" placeholder="—" value={f.max} onChange={(e) => setF({ ...f, max: e.target.value })}
+              className={`${inp} ml-1 w-16`} />
+          </label>
+          <Button size="sm" variant="outline" onClick={() => setF({ ...f, min: '2', max: '2' })}>
+            Ingresso duplo
+          </Button>
+        </div>
+        {minQ > 1 && (
+          <p className="mt-2 rounded-lg bg-background p-2 text-xs">
+            O preço informado é <strong>por ingresso</strong>. Quem comprar {minQ} vai pagar{' '}
+            <strong>{brl(Math.round((parseFloat(f.price.replace(',', '.')) || 0) * 100) * minQ)}</strong>.
+          </p>
+        )}
+        {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
       </div>
     </Section>
   )
@@ -443,4 +485,14 @@ function CancellationProgress({ eventId }: { eventId: string }) {
       )}
     </Section>
   )
+}
+
+/** comboLabel nomeia a faixa de quantidade do jeito que o produtor fala. */
+function comboLabel(min: number, max?: number | null) {
+  if (max === min) {
+    if (min === 2) return 'ingresso duplo'
+    if (min === 3) return 'ingresso triplo'
+    return `combo de ${min}`
+  }
+  return max ? `de ${min} a ${max} por compra` : `mínimo ${min} por compra`
 }

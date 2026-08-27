@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { pget, ppost } from '@/lib/producer'
 import { brl, formatDateTime } from '@/lib/format'
 
-type Lot = { id: string; name: string; price_cents: number; quantity: number; sold_count: number; held_count: number; sort_order: number; min_purchase_quantity: number; max_purchase_quantity?: number | null }
+type Lot = { id: string; name: string; price_cents: number; quantity: number; sold_count: number; held_count: number; sort_order: number; min_purchase_quantity: number; max_purchase_quantity?: number | null; notice?: string | null }
 type Sector = { id: string; name: string; kind: string }
 type Ev = { id: string; title: string; status: string; starts_at?: string; has_seat_map: boolean }
 
@@ -107,7 +107,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function Lots({ eventId, lots, onChange }: { eventId: string; lots: Lot[]; onChange: () => void }) {
-  const [f, setF] = useState({ name: '', price: '', quantity: '', min: '1', max: '' })
+  const [f, setF] = useState({ name: '', price: '', quantity: '', min: '1', max: '', notice: '' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const minQ = parseInt(f.min) || 1
@@ -119,13 +119,14 @@ function Lots({ eventId, lots, onChange }: { eventId: string; lots: Lot[]; onCha
       name: f.name, price_cents: Math.round(parseFloat(f.price.replace(',', '.')) * 100) || 0,
       quantity: parseInt(f.quantity) || 0, sort_order: lots.length,
       min_purchase_quantity: minQ, max_purchase_quantity: maxQ,
+      notice: f.notice.trim() || null,
     })
     setBusy(false)
     if (!res.ok) {
       setError(res.data?.error ?? 'não foi possível criar o lote')
       return
     }
-    setF({ name: '', price: '', quantity: '', min: '1', max: '' })
+    setF({ name: '', price: '', quantity: '', min: '1', max: '', notice: '' })
     onChange()
   }
   return (
@@ -137,6 +138,7 @@ function Lots({ eventId, lots, onChange }: { eventId: string; lots: Lot[]; onCha
             <span className="text-muted-foreground">
               {brl(l.price_cents)} · {l.sold_count}/{l.quantity} vendidos
               {l.min_purchase_quantity > 1 && <> · {comboLabel(l.min_purchase_quantity, l.max_purchase_quantity)}</>}
+              {l.notice && <span className="mt-0.5 block text-xs">“{l.notice}”</span>}
             </span>
           </div>
         ))}
@@ -176,6 +178,16 @@ function Lots({ eventId, lots, onChange }: { eventId: string; lots: Lot[]; onCha
           </p>
         )}
         {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+      </div>
+
+      <div className="mt-3">
+        <label className="text-xs text-muted-foreground" htmlFor="lot-notice">
+          Aviso desta categoria (opcional) — aparece na página de venda e no e-mail do ingresso
+        </label>
+        <input id="lot-notice" maxLength={280} value={f.notice}
+          onChange={(e) => setF({ ...f, notice: e.target.value })}
+          placeholder="Ex.: acomodações por ordem de chegada"
+          className={`${inp} mt-1 w-full`} />
       </div>
     </Section>
   )

@@ -23,6 +23,9 @@ export type PublicLot = {
   // acima é o UNITÁRIO, e o total é preço × quantidade.
   min_purchase_quantity: number
   max_purchase_quantity?: number | null
+  // Aviso do produtor para ESTA categoria. Já vem sanitizado do servidor; ainda assim é
+  // renderizado como TEXTO — nunca dangerouslySetInnerHTML.
+  notice?: string | null
 }
 
 export type PublicSeat = {

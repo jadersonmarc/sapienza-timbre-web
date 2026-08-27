@@ -461,6 +461,15 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
         </div>
       )}
 
+      {/* Aviso da categoria escolhida: aparece ANTES de pagar, junto do que ele qualifica.
+          Renderizado como texto — o conteúdo é do produtor, não nosso. */}
+      {currentLot?.notice && (
+        <p className="mt-3 rounded-lg border border-border bg-card p-3 text-xs">
+          <span className="text-muted-foreground">Aviso do produtor: </span>
+          {currentLot.notice}
+        </p>
+      )}
+
       {/* Meia-entrada (exigência explicada ANTES — §4.3). Some quando a cota do evento
           acaba: a inteira continua, e oferecer o que não existe mais só gera recusa. */}
       {qty > 0 && detail.half_price?.available === false && (

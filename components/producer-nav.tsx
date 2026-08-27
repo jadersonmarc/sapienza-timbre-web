@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { LayoutDashboard, LogOut } from 'lucide-react'
+import { LayoutDashboard, LogOut, RotateCcw } from 'lucide-react'
 import { producerLogout } from '@/lib/producer'
 
 export function ProducerNav() {
@@ -17,9 +17,17 @@ export function ProducerNav() {
         <Link href="/painel" className="flex items-center gap-2 font-display font-bold">
           <LayoutDashboard className="size-5 text-primary" /> Timbre · Painel
         </Link>
-        <button onClick={out} className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <LogOut className="size-4" /> Sair
-        </button>
+        <nav className="flex items-center gap-4">
+          <Link
+            href="/painel/devolucoes"
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <RotateCcw className="size-4" /> Devoluções
+          </Link>
+          <button onClick={out} className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <LogOut className="size-4" /> Sair
+          </button>
+        </nav>
       </div>
     </header>
   )

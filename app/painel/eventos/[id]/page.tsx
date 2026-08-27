@@ -260,6 +260,9 @@ function Sales({ eventId }: { eventId: string }) {
         <div className="rounded-xl border border-border bg-card p-4"><p className="text-xs text-muted-foreground">Bruto (face)</p><p className="mt-1 font-display text-xl font-bold">{brl(fin.gross_cents)}</p></div>
         <div className="rounded-xl border border-border bg-card p-4"><p className="text-xs text-muted-foreground">Seu repasse</p><p className="mt-1 font-display text-xl font-bold">{brl(fin.repasse_cents)}</p></div>
         <div className="rounded-xl border border-border bg-card p-4"><p className="text-xs text-muted-foreground">Taxa (comprador)</p><p className="mt-1 font-display text-xl font-bold">{brl(fin.taxa_cents)}</p></div>
+        {(fin.estorno_cents ?? 0) !== 0 && (
+          <div className="rounded-xl border border-border bg-card p-4"><p className="text-xs text-muted-foreground">Devolvido</p><p className="mt-1 font-display text-xl font-bold text-destructive">{brl(Math.abs(fin.estorno_cents ?? 0))}</p></div>
+        )}
       </div>
       {funnel && (
         <p className="mt-3 rounded-lg bg-secondary p-3 text-sm text-muted-foreground">

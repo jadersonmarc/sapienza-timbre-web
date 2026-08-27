@@ -342,3 +342,54 @@ export async function producerSignup(name: string, email: string, password: stri
   })
   return { ok: res.ok, status: res.status, data: await j(res) }
 }
+
+// ── devolução (estorno) ────────────────────────────────────────────────────────
+export type RefundPolicy = {
+  withdrawal_window_days: number
+  withdrawal_min_hours_before_event: number
+  accepts_requests_after_window: boolean
+  checkin_blocks_refund: boolean
+}
+
+export type RefundRequest = {
+  id: string
+  order_id: string
+  ticket_ids: string[]
+  track: string
+  status: string
+  reason?: string
+  decision_reason?: string
+  responds_by?: string
+  refund_amount_cents: number
+  created_at: string
+}
+
+export async function fetchRefundPolicy(eventId: string): Promise<RefundPolicy | null> {
+  const res = await fetch(`/api/events/${eventId}/refund-policy`)
+  if (!res.ok) return null
+  return j(res)
+}
+
+export async function fetchMyRefundRequests(): Promise<RefundRequest[]> {
+  const res = await fetch('/api/me/refund-requests')
+  if (!res.ok) return []
+  const body = await j(res)
+  return body.requests ?? []
+}
+
+// requestRefund devolve `immediate` quando o estorno já aconteceu (arrependimento dentro da
+// janela é direito, não passa pela casa) e `pending` quando entrou na fila do produtor.
+export async function requestRefund(
+  orderId: string,
+  reason: string,
+  ticketIds?: string[],
+): Promise<{ ok: boolean; immediate: boolean; error: string; request?: RefundRequest }> {
+  const res = await fetch(`/api/me/orders/${orderId}/refund-request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason, ticket_ids: ticketIds }),
+  })
+  const body = await j(res)
+  if (!res.ok) return { ok: false, immediate: false, error: body?.error ?? 'não foi possível pedir a devolução' }
+  return { ok: true, immediate: res.status === 200, error: '', request: body.request }
+}

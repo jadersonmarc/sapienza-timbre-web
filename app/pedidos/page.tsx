@@ -1,19 +1,24 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Receipt, Ticket } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { Button } from '@/components/ui/button'
-import { fetchMyOrders, type MyOrder } from '@/lib/client'
+import { fetchMyOrders, fetchMyRefundRequests, type MyOrder, type RefundRequest } from '@/lib/client'
+import { RefundRequestBox } from '@/components/refund-request'
 import { brl, formatDateTime } from '@/lib/format'
 
 const STATUS: Record<string, { label: string; tone: string }> = {
   pending: { label: 'Aguardando pagamento', tone: 'text-signal' },
   paid: { label: 'Pago', tone: 'text-primary' },
   refunded: { label: 'Estornado', tone: 'text-destructive' },
+  partially_refunded: { label: 'Parcialmente estornado', tone: 'text-signal' },
 }
+
+// Pedido de devolução vivo é o que decide se a tela oferece a ação ou mostra o andamento.
+const LIVE = new Set(['pending', 'approved', 'processing'])
 
 const METHOD: Record<string, string> = { pix: 'Pix', credit_card: 'Cartão' }
 
@@ -23,13 +28,19 @@ const METHOD: Record<string, string> = { pix: 'Pix', credit_card: 'Cartão' }
 export default function PedidosPage() {
   const router = useRouter()
   const [orders, setOrders] = useState<MyOrder[] | null>(null)
+  const [requests, setRequests] = useState<RefundRequest[]>([])
 
-  useEffect(() => {
+  const load = useCallback(() => {
     fetchMyOrders().then(({ authed, orders }) => {
       if (!authed) return router.replace('/conta')
       setOrders(orders)
     })
+    fetchMyRefundRequests().then(setRequests)
   }, [router])
+
+  useEffect(() => {
+    load()
+  }, [load])
 
   return (
     <>
@@ -86,6 +97,16 @@ export default function PedidosPage() {
                   <p className="mt-3 text-xs text-muted-foreground">
                     Estornado em {formatDateTime(o.refunded_at)}. Os ingressos deste pedido foram cancelados.
                   </p>
+                )}
+                {(o.status === 'paid' || o.status === 'partially_refunded') && (
+                  <RefundRequestBox
+                    orderId={o.order_id}
+                    eventId={o.event_id}
+                    existing={requests.find(
+                      (q) => q.order_id === o.order_id && (LIVE.has(q.status) || q.status === 'rejected'),
+                    )}
+                    onDone={load}
+                  />
                 )}
               </li>
             )

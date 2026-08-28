@@ -91,6 +91,7 @@ export default function EventoPainelPage({ params }: { params: Promise<{ id: str
         <Lots eventId={id} lots={lots} onChange={load} />
         <Sectors eventId={id} sectors={sectors} hasSeatMap={ev.has_seat_map} onChange={load} />
         {sectors.length > 0 && lots.length > 0 && <Prices lots={lots} sectors={sectors} />}
+        <Coupons eventId={id} />
         <Courtesies eventId={id} lots={lots} />
         <EventText eventId={id} ev={ev} onSaved={load} />
         {ev.status === 'cancelled' && <CancellationProgress eventId={id} />}
@@ -585,6 +586,112 @@ function EventText({ eventId, ev, onSaved }: { eventId: string; ev: Ev; onSaved:
           {msg && <span className="text-sm text-muted-foreground">{msg}</span>}
         </div>
       </div>
+    </Section>
+  )
+}
+
+type Coupon = {
+  id: string
+  code: string
+  discount_pct?: number | null
+  discount_cents?: number | null
+  max_uses?: number | null
+  uses: number
+  valid_from?: string | null
+  valid_until?: string | null
+}
+
+/**
+ * Cupons de desconto do evento.
+ *
+ * O desconto é por PORCENTAGEM ou por VALOR, nunca os dois: são formas diferentes de dizer a
+ * mesma coisa, e aceitar as duas juntas deixaria ambíguo qual vale na hora de cobrar.
+ *
+ * O uso aparece ao lado do limite porque é o que o produtor vem conferir — cupom que já
+ * estourou o limite continua existindo, só para de valer, e sem esse número ele parece
+ * quebrado.
+ */
+function Coupons({ eventId }: { eventId: string }) {
+  const [list, setList] = useState<Coupon[]>([])
+  const [f, setF] = useState({ code: '', kind: 'pct', value: '', max_uses: '', valid_until: '' })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const load = useCallback(() => {
+    pget(`events/${eventId}/coupons`).then((r) => r.ok && setList(r.data.coupons ?? []))
+  }, [eventId])
+  useEffect(load, [load])
+
+  async function add() {
+    setError('')
+    const code = f.code.trim().toUpperCase()
+    if (!code) return setError('Informe o código do cupom.')
+    const n = parseFloat(f.value.replace(',', '.'))
+    if (!n || n <= 0) return setError('Informe o desconto.')
+    if (f.kind === 'pct' && n > 100) return setError('Desconto em porcentagem não passa de 100%.')
+
+    setBusy(true)
+    const r = await ppost(`events/${eventId}/coupons`, {
+      code,
+      discount_pct: f.kind === 'pct' ? n : undefined,
+      discount_cents: f.kind === 'cents' ? Math.round(n * 100) : undefined,
+      max_uses: f.max_uses ? parseInt(f.max_uses) : undefined,
+      // Fim do dia: um cupom que vale "até 20/09" precisa valer o dia 20 inteiro, e não
+      // morrer à meia-noite do 19 para o 20.
+      valid_until: f.valid_until ? new Date(`${f.valid_until}T23:59:59`).toISOString() : undefined,
+    })
+    setBusy(false)
+    if (!r.ok) return setError(r.data?.error ?? 'Não foi possível criar o cupom.')
+    setF({ code: '', kind: 'pct', value: '', max_uses: '', valid_until: '' })
+    load()
+  }
+
+  return (
+    <Section title="Cupons de desconto">
+      {list.length === 0 && (
+        <p className="text-sm text-muted-foreground">Nenhum cupom neste evento.</p>
+      )}
+      <ul className="space-y-2">
+        {list.map((c) => {
+          const esgotado = c.max_uses != null && c.uses >= c.max_uses
+          const vencido = !!c.valid_until && new Date(c.valid_until) < new Date()
+          return (
+            <li key={c.id} className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg border border-border bg-card p-3 text-sm">
+              <span className="font-mono font-medium">{c.code}</span>
+              <span className="text-muted-foreground">
+                {c.discount_pct ? `${c.discount_pct}% off` : brl(c.discount_cents ?? 0) + ' off'}
+                {' · '}
+                {c.uses}
+                {c.max_uses != null ? `/${c.max_uses} usos` : ' usos'}
+                {c.valid_until && <> · até {formatDateTime(c.valid_until)}</>}
+                {(esgotado || vencido) && (
+                  <span className="ml-2 text-destructive">{esgotado ? 'esgotado' : 'vencido'}</span>
+                )}
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+        <input placeholder="CÓDIGO" value={f.code}
+          onChange={(e) => setF({ ...f, code: e.target.value.toUpperCase() })}
+          className={`${inp} font-mono uppercase`} />
+        <select value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })} className={inp}>
+          <option value="pct">% de desconto</option>
+          <option value="cents">R$ de desconto</option>
+        </select>
+        <input placeholder={f.kind === 'pct' ? '10' : '25,00'} inputMode="decimal" value={f.value}
+          onChange={(e) => setF({ ...f, value: e.target.value })} className={inp} />
+      </div>
+      <div className="mt-2 grid gap-2 sm:grid-cols-[auto_auto_auto]">
+        <input placeholder="Limite de usos (opcional)" inputMode="numeric" value={f.max_uses}
+          onChange={(e) => setF({ ...f, max_uses: e.target.value })} className={inp} />
+        <input type="date" value={f.valid_until}
+          onChange={(e) => setF({ ...f, valid_until: e.target.value })} className={inp} />
+        <Button size="sm" disabled={busy} onClick={add}><Plus className="size-4" /> Cupom</Button>
+      </div>
+      {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
     </Section>
   )
 }

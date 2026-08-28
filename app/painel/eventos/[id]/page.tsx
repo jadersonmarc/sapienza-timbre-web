@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { ChevronLeft, Plus } from 'lucide-react'
 import { ProducerNav } from '@/components/producer-nav'
 import { RichEditor } from '@/components/rich-editor'
+import { RefundPolicyForm } from '@/components/refund-policy-form'
 import { ReceivingAccount } from '@/components/receiving-account'
 import { Button } from '@/components/ui/button'
 import { pget, ppatch, ppost } from '@/lib/producer'
@@ -91,7 +92,11 @@ export default function EventoPainelPage({ params }: { params: Promise<{ id: str
         <Lots eventId={id} lots={lots} onChange={load} />
         <Sectors eventId={id} sectors={sectors} hasSeatMap={ev.has_seat_map} onChange={load} />
         {sectors.length > 0 && lots.length > 0 && <Prices lots={lots} sectors={sectors} />}
+        <HalfPriceQuota eventId={id} />
         <Coupons eventId={id} />
+        <Section title="Política de devolução deste evento">
+          <RefundPolicyForm eventId={id} />
+        </Section>
         <Courtesies eventId={id} lots={lots} />
         <EventText eventId={id} ev={ev} onSaved={load} />
         {ev.status === 'cancelled' && <CancellationProgress eventId={id} />}
@@ -692,6 +697,81 @@ function Coupons({ eventId }: { eventId: string }) {
         <Button size="sm" disabled={busy} onClick={add}><Plus className="size-4" /> Cupom</Button>
       </div>
       {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+    </Section>
+  )
+}
+
+/**
+ * Cota de meia-entrada.
+ *
+ * Os 40% da Lei 12.933/2013 valem por conta própria, mesmo sem o produtor declarar nada — e
+ * desde que a cota passou a barrar a venda, ele precisava de um lugar para ver quanto resta
+ * e para oferecer MAIS, que é o único lado que a lei permite mexer.
+ *
+ * O número aqui é o mesmo que a página de venda publica, porque o art. 1º, §1º obriga a
+ * informar a disponibilidade de meia em todos os pontos de venda.
+ */
+function HalfPriceQuota({ eventId }: { eventId: string }) {
+  const [hp, setHp] = useState<{ quota: number; granted: number; remaining: number } | null>(null)
+  const [declarado, setDeclarado] = useState('')
+  const [pct, setPct] = useState('40')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  const load = useCallback(() => {
+    // A cota vigente vem do mesmo lugar que o painel já consulta para as vendas — é o número
+    // que a página pública publica, não uma segunda conta.
+    pget(`dash/events/${eventId}`).then((r) => r.ok && setHp(r.data.half_price ?? null))
+    pget(`events/${eventId}/commitments`).then((r) => {
+      if (!r.ok) return
+      const c = (r.data.commitments ?? []).find(
+        (x: { kind: string }) => x.kind === 'meia_entrada_cota',
+      ) as { target_type: string; target_value: string } | undefined
+      setDeclarado(c ? `${c.target_value}${c.target_type === 'percent' ? '%' : ''}` : '')
+      if (c?.target_type === 'percent') setPct(String(parseFloat(c.target_value)))
+    })
+  }, [eventId])
+  useEffect(load, [load])
+
+  async function declarar() {
+    const n = parseFloat(pct.replace(',', '.'))
+    setMsg('')
+    if (!n || n < 40) return setMsg('A cota não pode ser menor que 40% — é o piso da lei.')
+    setBusy(true)
+    const r = await ppost(`events/${eventId}/commitments`, {
+      kind: 'meia_entrada_cota', target_type: 'percent', target_value: String(n),
+    })
+    setBusy(false)
+    if (!r.ok) return setMsg(r.data?.error ?? 'Não foi possível declarar.')
+    setMsg('Cota declarada.')
+    load()
+  }
+
+  return (
+    <Section title="Meia-entrada">
+      {hp && (
+        <p className="text-sm">
+          <strong>{hp.remaining}</strong> de {hp.quota} meias ainda disponíveis
+          {hp.granted > 0 && <> · {hp.granted} já emitidas</>}
+          {hp.remaining === 0 && (
+            <span className="ml-2 text-signal">cota esgotada — a inteira segue à venda</span>
+          )}
+        </p>
+      )}
+      <p className="mt-1 text-xs text-muted-foreground">
+        A lei garante 40% dos ingressos para meia-entrada. Você pode oferecer mais, nunca
+        menos — e o número acima aparece na página de venda, como a lei exige.
+        {declarado && <> Cota declarada por você: <strong>{declarado}</strong>.</>}
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <input inputMode="decimal" value={pct} onChange={(e) => setPct(e.target.value)}
+          className={`${inp} w-24`} />
+        <span className="text-sm text-muted-foreground">% dos ingressos</span>
+        <Button size="sm" variant="outline" onClick={declarar} disabled={busy}>
+          Declarar cota
+        </Button>
+        {msg && <span className="text-sm text-muted-foreground">{msg}</span>}
+      </div>
     </Section>
   )
 }

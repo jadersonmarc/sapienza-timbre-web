@@ -5,14 +5,18 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, Plus } from 'lucide-react'
 import { ProducerNav } from '@/components/producer-nav'
+import { RichEditor } from '@/components/rich-editor'
 import { ReceivingAccount } from '@/components/receiving-account'
 import { Button } from '@/components/ui/button'
-import { pget, ppost } from '@/lib/producer'
+import { pget, ppatch, ppost } from '@/lib/producer'
 import { brl, formatDateTime } from '@/lib/format'
 
 type Lot = { id: string; name: string; price_cents: number; quantity: number; sold_count: number; held_count: number; sort_order: number; min_purchase_quantity: number; max_purchase_quantity?: number | null; notice?: string | null }
 type Sector = { id: string; name: string; kind: string }
-type Ev = { id: string; title: string; status: string; starts_at?: string; has_seat_map: boolean }
+type Ev = {
+  id: string; title: string; status: string; starts_at?: string; has_seat_map: boolean
+  subtitle?: string; description?: string; terms?: string; age_rating?: string; address?: string
+}
 
 const inp = 'h-10 w-full rounded-lg border border-border bg-card px-3 text-sm'
 
@@ -88,6 +92,7 @@ export default function EventoPainelPage({ params }: { params: Promise<{ id: str
         <Sectors eventId={id} sectors={sectors} hasSeatMap={ev.has_seat_map} onChange={load} />
         {sectors.length > 0 && lots.length > 0 && <Prices lots={lots} sectors={sectors} />}
         <Courtesies eventId={id} lots={lots} />
+        <EventText eventId={id} ev={ev} onSaved={load} />
         {ev.status === 'cancelled' && <CancellationProgress eventId={id} />}
         <Sales eventId={id} />
         <Fechamento eventId={id} />
@@ -507,4 +512,79 @@ function comboLabel(min: number, max?: number | null) {
     return `combo de ${min}`
   }
   return max ? `de ${min} a ${max} por compra` : `mínimo ${min} por compra`
+}
+
+/**
+ * Texto do evento: o que o comprador lê antes de decidir.
+ *
+ * Fica editável depois da criação porque descrição é a parte que mais muda — o produtor
+ * publica com o essencial e vai completando conforme fecha atração, horário e regra da casa.
+ */
+function EventText({ eventId, ev, onSaved }: { eventId: string; ev: Ev; onSaved: () => void }) {
+  const [f, setF] = useState({
+    subtitle: ev.subtitle ?? '',
+    description: ev.description ?? '',
+    terms: ev.terms ?? '',
+    age_rating: ev.age_rating ?? '',
+    address: ev.address ?? '',
+  })
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  async function save() {
+    setBusy(true)
+    setMsg('')
+    // Campo vazio vira null: o PATCH usa COALESCE, então string vazia manteria o valor
+    // antigo e o produtor nunca conseguiria APAGAR o que escreveu.
+    const r = await ppatch(`events/${eventId}`, {
+      subtitle: f.subtitle.trim() || null,
+      description: f.description.trim() || null,
+      terms: f.terms.trim() || null,
+      age_rating: f.age_rating.trim() || null,
+      address: f.address.trim() || null,
+    })
+    setBusy(false)
+    setMsg(r.ok ? 'Salvo.' : (r.data?.error ?? 'Não foi possível salvar.'))
+    if (r.ok) onSaved()
+  }
+
+  return (
+    <Section title="Texto do evento">
+      <p className="text-sm text-muted-foreground">
+        É o que aparece na página de venda, no card de compartilhamento e na busca.
+      </p>
+      <div className="mt-3 space-y-3">
+        <label className="block">
+          <span className="mb-1 block text-sm text-muted-foreground">Subtítulo</span>
+          <input value={f.subtitle} maxLength={160}
+            onChange={(e) => setF({ ...f, subtitle: e.target.value })}
+            placeholder="Ex.: turnê de despedida" className={inp} />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm text-muted-foreground">Sobre o evento</span>
+          <RichEditor value={f.description} onChange={(v) => setF({ ...f, description: v })} />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm text-muted-foreground">Informações importantes</span>
+          <RichEditor value={f.terms} onChange={(v) => setF({ ...f, terms: v })} rows={5} maxLength={2000} />
+        </label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1 block text-sm text-muted-foreground">Classificação etária</span>
+            <input value={f.age_rating} onChange={(e) => setF({ ...f, age_rating: e.target.value })}
+              placeholder="Ex.: 14 anos" className={inp} />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm text-muted-foreground">Endereço</span>
+            <input value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })}
+              placeholder="Rua, número, bairro" className={inp} />
+          </label>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button size="sm" onClick={save} disabled={busy}>{busy ? 'Salvando…' : 'Salvar texto'}</Button>
+          {msg && <span className="text-sm text-muted-foreground">{msg}</span>}
+        </div>
+      </div>
+    </Section>
+  )
 }

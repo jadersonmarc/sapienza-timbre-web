@@ -52,6 +52,9 @@ export type PublicSector = {
 export type PublicEvent = {
   id: string
   title: string
+  // Linha curta abaixo do título — "turnê de despedida", "com participação de X".
+  subtitle?: string
+  // Texto do produtor com marcação simples. NUNCA renderizar como HTML: use <RichText>.
   description?: string
   category: string
   cover_url?: string
@@ -67,8 +70,12 @@ export type PublicEvent = {
   has_seat_map: boolean
 }
 
+export type PublicProducer = { id: string; name: string }
+
 export type PublicEventDetail = {
   event: PublicEvent
+  // Quem apresenta o evento. O comprador precisa saber de quem está comprando.
+  producer: PublicProducer
   lots: PublicLot[]
   current_lot_id?: string
   sectors: PublicSector[]

@@ -3,7 +3,7 @@
 import { use, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, Plus } from 'lucide-react'
+import { ChevronLeft, Download, Plus } from 'lucide-react'
 import { ProducerNav } from '@/components/producer-nav'
 import { RichEditor } from '@/components/rich-editor'
 import { RefundPolicyForm } from '@/components/refund-policy-form'
@@ -101,6 +101,7 @@ export default function EventoPainelPage({ params }: { params: Promise<{ id: str
         <EventText eventId={id} ev={ev} onSaved={load} />
         {ev.status === 'cancelled' && <CancellationProgress eventId={id} />}
         <Sales eventId={id} />
+        <Exportar eventId={id} />
         <Fechamento eventId={id} />
         <Notificacoes eventId={id} />
       </main>
@@ -505,6 +506,73 @@ function Notificacoes({ eventId }: { eventId: string }) {
           ))}
         </ul>
       )}
+    </Section>
+  )
+}
+
+const STATUS_EXPORT = [
+  { v: '', label: 'Todos os status' },
+  { v: 'active', label: 'Válidos' },
+  { v: 'used', label: 'Já entraram' },
+  { v: 'cancelled', label: 'Cancelados' },
+  { v: 'transferred', label: 'Transferidos' },
+  { v: 'burned', label: 'Devolvidos' },
+]
+
+/**
+ * Exportação da lista de ingressos.
+ *
+ * Uma linha por INGRESSO, não por pedido: quem exporta está conferindo portaria, cortesia
+ * ou devolução, e tudo isso acontece por ingresso.
+ *
+ * A planilha NÃO leva CPF. O produtor precisa saber a quem entregar e a quem responder, e
+ * nome e e-mail resolvem isso; o CPF só aumenta o estrago de um arquivo que vaza, e uma
+ * planilha sai do sistema para dentro de e-mails e pen drives que ninguém mais controla.
+ *
+ * O download é uma navegação de verdade (não um fetch): o arquivo vem transmitido do
+ * servidor e o navegador salva enquanto ele chega, sem passar pela memória da aba.
+ */
+function Exportar({ eventId }: { eventId: string }) {
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [status, setStatus] = useState('')
+
+  const qs = new URLSearchParams()
+  if (from) qs.set('from', from)
+  if (to) qs.set('to', to)
+  if (status) qs.set('status', status)
+  const href = `/api/producer/export/${eventId}${qs.toString() ? `?${qs}` : ''}`
+
+  return (
+    <Section title="Exportar lista de ingressos">
+      <p className="text-sm text-muted-foreground">
+        Uma linha por ingresso, com lote, assento, valor pago, meia-entrada, portador,
+        cortesia e horário de entrada. Sem CPF.
+      </p>
+      <div className="mt-3 flex flex-wrap items-end gap-3">
+        <label className="text-sm">
+          <span className="block text-xs text-muted-foreground">Emitidos de</span>
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={inp} />
+        </label>
+        <label className="text-sm">
+          <span className="block text-xs text-muted-foreground">até</span>
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={inp} />
+        </label>
+        <label className="text-sm">
+          <span className="block text-xs text-muted-foreground">Status</span>
+          <select value={status} onChange={(e) => setStatus(e.target.value)} className={inp}>
+            {STATUS_EXPORT.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
+          </select>
+        </label>
+        <a href={href} download
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">
+          <Download className="size-4" /> Baixar CSV
+        </a>
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Toda exportação fica registrada na trilha do evento: quem baixou, quando e com qual
+        recorte.
+      </p>
     </Section>
   )
 }

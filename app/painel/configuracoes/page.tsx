@@ -172,7 +172,67 @@ function GateAccess() {
             </p>
           </div>
         )}
+        <Devices />
       </div>
     </Section>
+  )
+}
+
+type Device = {
+  device_id: string
+  key_fingerprint: string
+  gate: string
+  checkins_synced: number
+  last_sync_at: string
+  key_current: boolean
+}
+
+/**
+ * Aparelhos da portaria: quando cada um falou com o servidor e com qual chave.
+ *
+ * O aparelho que ficou com a chave antiga recusa ingresso legítimo — e recusa com a MESMA
+ * cara de quem recusa um falso. Na fila da porta ninguém distingue as duas coisas, então o
+ * lugar de descobrir isso é aqui, antes.
+ *
+ * Um aparelho só aparece depois de sincronizar pelo menos uma vez. A ausência de um que
+ * deveria estar aqui também é resposta: ele nunca abriu a portaria com essa conta.
+ */
+function Devices() {
+  const [list, setList] = useState<Device[]>([])
+  useEffect(() => {
+    pget('gate/devices').then((r) => r.ok && setList(r.data.devices ?? []))
+  }, [])
+  if (!list.length) return null
+
+  const atrasados = list.filter((d) => !d.key_current)
+  return (
+    <div className="mt-4">
+      <p className="text-sm font-medium">Aparelhos que já sincronizaram</p>
+      {atrasados.length > 0 && (
+        <p className="mt-1 rounded-lg bg-signal/10 p-2 text-xs text-signal">
+          {atrasados.length} aparelho(s) não estão com a chave em uso. Abra a portaria neles
+          com internet — a chave se atualiza sozinha ao entrar.
+        </p>
+      )}
+      <ul className="mt-2 space-y-1">
+        {list.map((d) => (
+          <li key={d.device_id}
+            className={`flex flex-wrap items-baseline justify-between gap-2 rounded-lg border p-2 text-xs ${
+              d.key_current ? 'border-border' : 'border-signal/40 bg-signal/5'
+            }`}>
+            <span className="font-mono">{d.device_id.slice(0, 12)}{d.gate && ` · ${d.gate}`}</span>
+            <span className="text-muted-foreground">
+              {d.checkins_synced} check-in(s) · última sincronização{' '}
+              {new Date(d.last_sync_at).toLocaleString('pt-BR')}
+              {!d.key_current && (
+                <strong className="ml-2 text-signal">
+                  {d.key_fingerprint ? 'chave desatualizada' : 'chave não informada'}
+                </strong>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }

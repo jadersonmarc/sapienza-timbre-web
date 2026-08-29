@@ -254,15 +254,25 @@ function SalesSearch({ onChanged }: { onChanged: () => void }) {
                 Já existe um pedido de devolução ({s.refund_request_status}).
               </p>
             )}
-            {s.active_tickets > 0 && !s.refund_request_status && (
-              <button
-                onClick={() => setOpen(open === s.order_id ? null : s.order_id)}
-                className="mt-2 text-sm text-muted-foreground hover:text-foreground hover:underline"
-              >
-                {open === s.order_id ? 'Fechar' : 'Cancelar ingressos desta venda'}
-              </button>
-            )}
-            {open === s.order_id && (
+            <div className="mt-2 flex flex-wrap gap-3 text-sm">
+              {s.active_tickets > 0 && !s.refund_request_status && (
+                <button
+                  onClick={() => setOpen(open === `cancel:${s.order_id}` ? null : `cancel:${s.order_id}`)}
+                  className="text-muted-foreground hover:text-foreground hover:underline"
+                >
+                  Cancelar ingressos
+                </button>
+              )}
+              {s.active_tickets > 0 && (
+                <button
+                  onClick={() => setOpen(open === `tickets:${s.order_id}` ? null : `tickets:${s.order_id}`)}
+                  className="text-muted-foreground hover:text-foreground hover:underline"
+                >
+                  Ingressos desta venda
+                </button>
+              )}
+            </div>
+            {open === `cancel:${s.order_id}` && (
               <CancelBox
                 orderId={s.order_id}
                 onDone={() => {
@@ -272,6 +282,7 @@ function SalesSearch({ onChanged }: { onChanged: () => void }) {
                 }}
               />
             )}
+            {open === `tickets:${s.order_id}` && <TicketActions orderId={s.order_id} />}
           </li>
         ))}
       </ul>
@@ -368,5 +379,147 @@ function CancelBox({ orderId, onDone }: { orderId: string; onDone: () => void })
         </>
       )}
     </div>
+  )
+}
+
+/**
+ * Ações por ingresso — o atendimento do dia do evento.
+ *
+ * Fica na MESMA tela da busca de venda, e não numa superfície nova: quem atende chega aqui
+ * procurando a pessoa, e obrigá-lo a levar o número do ingresso para outro lugar é o que faz
+ * a ligação durar. Reemitir resolve o QR que não abre e o e-mail errado; transferir resolve o
+ * ingresso comprado no nome de outra pessoa.
+ */
+function TicketActions({ orderId }: { orderId: string }) {
+  const [tickets, setTickets] = useState<Ticket[] | null>(null)
+  const [open, setOpen] = useState<string | null>(null)
+
+  const load = useCallback(() => {
+    pget(`sales/${orderId}/tickets`).then((r) => setTickets(r.data.tickets ?? []))
+  }, [orderId])
+  useEffect(load, [load])
+
+  if (tickets === null) return <p className="mt-3 text-sm text-muted-foreground">Carregando…</p>
+
+  return (
+    <ul className="mt-3 space-y-2">
+      {tickets.map((t) => (
+        <li key={t.id} className="rounded-lg border border-border bg-background p-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+            <span>
+              {t.attendee_name || 'sem nome'}
+              {t.seat && <span className="text-muted-foreground"> · {t.sector} {t.seat}</span>}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {t.status}
+              {t.checked_in && ' · já entrou'}
+            </span>
+          </div>
+
+          {t.status === 'active' && !t.checked_in && (
+            <div className="mt-2 flex flex-wrap gap-3 text-sm">
+              <button onClick={() => setOpen(open === `r:${t.id}` ? null : `r:${t.id}`)}
+                className="text-muted-foreground hover:text-foreground hover:underline">
+                Reemitir
+              </button>
+              <button onClick={() => setOpen(open === `t:${t.id}` ? null : `t:${t.id}`)}
+                className="text-muted-foreground hover:text-foreground hover:underline">
+                Trocar titular
+              </button>
+              <button onClick={() => setOpen(open === `h:${t.id}` ? null : `h:${t.id}`)}
+                className="text-muted-foreground hover:text-foreground hover:underline">
+                Histórico
+              </button>
+            </div>
+          )}
+          {t.checked_in && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Ingresso com entrada registrada não é reemitido nem transferido por aqui. Se for
+              mesmo o caso, fale com a plataforma.
+            </p>
+          )}
+
+          {open === `r:${t.id}` && (
+            <TicketForm ticketId={t.id} action="reissue" onDone={() => { setOpen(null); load() }}
+              title="Reemitir ingresso"
+              hint="Gera um QR novo e invalida o anterior na mesma hora. Deixe o e-mail em branco para reenviar ao endereço da compra." />
+          )}
+          {open === `t:${t.id}` && (
+            <TicketForm ticketId={t.id} action="transfer-to" onDone={() => { setOpen(null); load() }}
+              title="Trocar titular" emailRequired
+              hint="O ingresso passa para outra pessoa. Não gera cobrança nem altera valores; o titular anterior é avisado." />
+          )}
+          {open === `h:${t.id}` && <TicketHistory ticketId={t.id} />}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function TicketForm({
+  ticketId, action, title, hint, emailRequired, onDone,
+}: {
+  ticketId: string; action: 'reissue' | 'transfer-to'; title: string; hint: string
+  emailRequired?: boolean; onDone: () => void
+}) {
+  const [email, setEmail] = useState('')
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function submit() {
+    if (emailRequired && !email.trim()) return setError('Informe o e-mail do novo titular.')
+    setBusy(true)
+    setError('')
+    const r = await ppost(`tickets/${ticketId}/${action}`, {
+      to_email: email.trim() || undefined,
+      reason: reason.trim() || undefined,
+    })
+    setBusy(false)
+    if (!r.ok) return setError(r.data?.error ?? 'Não foi possível concluir.')
+    onDone()
+  }
+
+  return (
+    <div className="mt-2 rounded-lg border border-border p-3">
+      <p className="text-sm font-medium">{title}</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
+      <input value={email} onChange={(e) => setEmail(e.target.value)}
+        placeholder={emailRequired ? 'e-mail do novo titular' : 'novo e-mail (opcional)'}
+        className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm" />
+      <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200}
+        placeholder="Motivo (fica no histórico)"
+        className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm" />
+      {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+      <Button size="sm" onClick={submit} disabled={busy} className="mt-2">
+        {busy ? 'Aplicando…' : 'Confirmar'}
+      </Button>
+    </div>
+  )
+}
+
+/** Histórico do ingresso: é o que o produtor mostra quando o comprador contesta. */
+function TicketHistory({ ticketId }: { ticketId: string }) {
+  const [events, setEvents] = useState<
+    { at: string; actor_kind: string; to_status: string; reason?: string }[] | null
+  >(null)
+  useEffect(() => {
+    pget(`tickets/${ticketId}/history`).then((r) => setEvents(r.data.events ?? []))
+  }, [ticketId])
+
+  if (events === null) return <p className="mt-2 text-xs text-muted-foreground">Carregando…</p>
+  if (events.length === 0) {
+    return <p className="mt-2 text-xs text-muted-foreground">Nada além da emissão original.</p>
+  }
+  return (
+    <ul className="mt-2 space-y-1 border-l border-border pl-3 text-xs text-muted-foreground">
+      {events.map((e, i) => (
+        <li key={i}>
+          <span className="text-foreground">{e.to_status}</span> · {e.actor_kind} ·{' '}
+          {formatDateTime(e.at)}
+          {e.reason && <> — {e.reason}</>}
+        </li>
+      ))}
+    </ul>
   )
 }

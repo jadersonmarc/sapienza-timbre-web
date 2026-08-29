@@ -277,39 +277,161 @@ function Prices({ lots, sectors }: { lots: Lot[]; sectors: Sector[] }) {
   )
 }
 
+type Guest = {
+  id: string
+  name: string
+  status: string
+  courtesy_category_id?: string
+  courtesy_category?: string
+}
+
+type Cat = { id: string; name: string; slug: string; active: boolean }
+
+type Commitment = {
+  kind: string
+  category?: string
+  target_type: string
+  target_value?: string | number
+  realized?: number
+  description?: string
+  status: string
+}
+
+/**
+ * Cortesias e suas categorias.
+ *
+ * A categoria não é etiqueta: a comprovação de público publica cortesia POR categoria e
+ * confronta com o compromisso declarado. Cortesia sem categoria some do atestado — por isso
+ * ela é obrigatória aqui, sem opção "sem categoria" que jogue tudo num balde.
+ *
+ * As categorias valem para TODOS os seus eventos: editar uma aqui muda o nome dela em todos.
+ * Elas se arquivam, nunca se apagam — a cortesia já emitida precisa continuar apontando para
+ * a categoria em que foi contada, senão o atestado de um evento passado muda sozinho.
+ */
 function Courtesies({ eventId, lots }: { eventId: string; lots: Lot[] }) {
   const [name, setName] = useState('')
   const [lotId, setLotId] = useState('')
   const [catId, setCatId] = useState('')
-  const [cats, setCats] = useState<{ id: string; name: string }[]>([])
+  const [cats, setCats] = useState<Cat[]>([])
+  const [guests, setGuests] = useState<Guest[]>([])
+  const [novaCat, setNovaCat] = useState('')
   const [msg, setMsg] = useState('')
-  useEffect(() => {
-    pget('courtesy-categories').then((r) => r.ok && setCats(r.data.categories ?? []))
-  }, [])
+  const [gerir, setGerir] = useState(false)
+
+  const load = useCallback(() => {
+    pget('courtesy-categories?all=true').then((r) => r.ok && setCats(r.data.categories ?? []))
+    pget(`events/${eventId}/guests`).then((r) => r.ok && setGuests(r.data.guests ?? []))
+  }, [eventId])
+  useEffect(load, [load])
+
+  const ativas = cats.filter((c) => c.active)
+  // Contagem por categoria: é o número que o atestado publica.
+  const porCategoria = guests.reduce<Record<string, number>>((acc, g) => {
+    const k = g.courtesy_category || 'sem categoria'
+    acc[k] = (acc[k] ?? 0) + 1
+    return acc
+  }, {})
+
   async function give() {
-    if (!catId) {
-      setMsg('Escolha a categoria da cortesia.')
-      return
-    }
-    const r = await ppost(`events/${eventId}/guests`, { name, lot_id: lotId || lots[0]?.id, courtesy_category_id: catId })
+    if (!catId) return setMsg('Escolha a categoria — é por ela que a cortesia é contada.')
+    const r = await ppost(`events/${eventId}/guests`, {
+      name, lot_id: lotId || lots[0]?.id, courtesy_category_id: catId,
+    })
     setMsg(r.ok ? 'Cortesia emitida.' : r.data?.error || 'Falhou.')
-    setName('')
+    if (r.ok) { setName(''); load() }
   }
+
+  async function criarCategoria() {
+    const nome = novaCat.trim()
+    if (!nome) return
+    const slug = nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+    const r = await ppost('courtesy-categories', { slug, name: nome, sort_order: cats.length + 1 })
+    setMsg(r.ok ? 'Categoria criada.' : r.data?.error || 'Falhou.')
+    if (r.ok) { setNovaCat(''); load() }
+  }
+
+  async function arquivar(c: Cat) {
+    const r = await ppatch(`courtesy-categories/${c.id}`, { active: !c.active })
+    if (r.ok) load()
+  }
+
+  async function reclassificar(g: Guest, categoryId: string) {
+    const r = await ppost(`guests/${g.id}/category`, { courtesy_category_id: categoryId })
+    setMsg(r.ok ? 'Cortesia reclassificada.' : r.data?.error || 'Falhou.')
+    if (r.ok) load()
+  }
+
   return (
     <Section title="Cortesias">
+      {Object.keys(porCategoria).length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-2 text-sm">
+          {Object.entries(porCategoria).map(([k, n]) => (
+            <span key={k} className="rounded-full bg-secondary px-3 py-1">
+              {k}: <strong>{n}</strong>
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
         <input placeholder="Nome do convidado" value={name} onChange={(e) => setName(e.target.value)} className={`${inp} flex-1`} />
         <select value={catId} onChange={(e) => setCatId(e.target.value)} className={inp}>
           <option value="">Categoria…</option>
-          {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          {ativas.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <select value={lotId} onChange={(e) => setLotId(e.target.value)} className={inp}>
           <option value="">Lote…</option>
           {lots.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
         <Button size="sm" disabled={!name} onClick={give}>Emitir</Button>
-        {msg && <span className="text-sm text-muted-foreground">{msg}</span>}
       </div>
+      {msg && <p className="mt-2 text-sm text-muted-foreground">{msg}</p>}
+
+      {guests.length > 0 && (
+        <ul className="mt-4 space-y-1">
+          {guests.map((g) => (
+            <li key={g.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+              <span>{g.name} <span className="text-xs text-muted-foreground">· {g.status}</span></span>
+              <select value={g.courtesy_category_id ?? ''} className={`${inp} text-xs`}
+                onChange={(e) => reclassificar(g, e.target.value)}>
+                {!g.courtesy_category_id && <option value="">sem categoria</option>}
+                {ativas.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <button onClick={() => setGerir((v) => !v)}
+        className="mt-4 text-sm text-muted-foreground hover:text-foreground hover:underline">
+        {gerir ? 'Fechar categorias' : 'Gerenciar categorias'}
+      </button>
+      {gerir && (
+        <div className="mt-2 rounded-lg border border-border p-3">
+          <p className="text-xs text-muted-foreground">
+            As categorias valem para todos os seus eventos. Elas se <strong>arquivam</strong>,
+            nunca se apagam — a cortesia já emitida precisa continuar apontando para a
+            categoria em que foi contada.
+          </p>
+          <ul className="mt-2 space-y-1">
+            {cats.map((c) => (
+              <li key={c.id} className="flex items-center justify-between gap-2 text-sm">
+                <span className={c.active ? '' : 'text-muted-foreground line-through'}>{c.name}</span>
+                <button onClick={() => arquivar(c)}
+                  className="text-xs text-muted-foreground hover:text-foreground hover:underline">
+                  {c.active ? 'arquivar' : 'reativar'}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-3 flex gap-2">
+            <input placeholder="Nova categoria (ex.: permuta)" value={novaCat}
+              onChange={(e) => setNovaCat(e.target.value)} className={`${inp} flex-1`} />
+            <Button size="sm" variant="outline" onClick={criarCategoria}>Criar</Button>
+          </div>
+        </div>
+      )}
     </Section>
   )
 }
@@ -407,10 +529,56 @@ function Fechamento({ eventId }: { eventId: string }) {
 
   if (!d) return null
   const closed = !d.provisional
-  const pending = (d.commitments ?? []).filter((c: any) => c.status === 'nao_cumprido')
+  const commitments = (d.commitments ?? []) as Commitment[]
+  const pending = commitments.filter((c) => c.status === 'nao_cumprido')
 
   return (
     <Section title="Comprovação de público">
+      {/*
+        O confronto aparece ANTES de fechar, de propósito: depois do fechamento o número
+        está congelado no registro assinado e não há mais o que corrigir.
+      */}
+      {commitments.length > 0 && (
+        <div className="mb-4 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-xs text-muted-foreground">
+              <tr className="text-left">
+                <th className="pb-1 font-normal">Compromisso</th>
+                <th className="pb-1 text-right font-normal">Declarado</th>
+                <th className="pb-1 text-right font-normal">Emitido</th>
+                <th className="pb-1 text-right font-normal">Diferença</th>
+              </tr>
+            </thead>
+            <tbody>
+              {commitments.map((c, i) => {
+                const alvo = Number(c.target_value ?? 0)
+                const feito = Number(c.realized ?? 0)
+                const dif = feito - alvo
+                return (
+                  <tr key={i} className="border-t border-border">
+                    <td className="py-1.5">
+                      {c.description || c.category || c.kind}
+                      {c.target_type === 'percent' && <span className="text-xs text-muted-foreground"> (%)</span>}
+                    </td>
+                    <td className="py-1.5 text-right tabular-nums">{alvo}</td>
+                    <td className="py-1.5 text-right tabular-nums">{feito}</td>
+                    <td className={`py-1.5 text-right tabular-nums ${dif < 0 ? 'text-signal' : 'text-muted-foreground'}`}>
+                      {dif > 0 ? `+${dif}` : dif}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+          {!closed && pending.length > 0 && (
+            <p className="mt-2 text-xs text-signal">
+              Falta cumprir {pending.length} compromisso(s). Depois de fechar, o número vai
+              assinado para o registro público como está.
+            </p>
+          )}
+        </div>
+      )}
+
       {!closed ? (
         <>
           <p className="text-sm text-muted-foreground">
@@ -750,13 +918,29 @@ function HalfPriceQuota({ eventId }: { eventId: string }) {
   return (
     <Section title="Meia-entrada">
       {hp && (
-        <p className="text-sm">
-          <strong>{hp.remaining}</strong> de {hp.quota} meias ainda disponíveis
-          {hp.granted > 0 && <> · {hp.granted} já emitidas</>}
-          {hp.remaining === 0 && (
-            <span className="ml-2 text-signal">cota esgotada — a inteira segue à venda</span>
-          )}
-        </p>
+        <>
+          <p className="text-sm">
+            <strong>{hp.remaining}</strong> de {hp.quota} meias ainda disponíveis
+            {hp.granted > 0 && <> · {hp.granted} já emitidas</>}
+            {hp.remaining === 0 && (
+              <span className="ml-2 text-signal">cota esgotada — a inteira segue à venda</span>
+            )}
+          </p>
+          {/*
+            Indicador de nível: quanto da cota já saiu. É o mesmo número da linha acima, em
+            forma de barra — o produtor precisa ver de longe que a meia está acabando, porque
+            quando ela acaba a página de venda muda o que informa ao comprador.
+          */}
+          <div className="mt-2" role="img"
+            aria-label={`${hp.granted} de ${hp.quota} meias emitidas`}>
+            <div className="h-2 overflow-hidden rounded-full bg-secondary">
+              <div
+                className={`h-full rounded-full ${hp.remaining === 0 ? 'bg-signal' : 'bg-primary'}`}
+                style={{ width: `${hp.quota > 0 ? Math.min(100, (hp.granted / hp.quota) * 100) : 0}%` }}
+              />
+            </div>
+          </div>
+        </>
       )}
       <p className="mt-1 text-xs text-muted-foreground">
         A lei garante 40% dos ingressos para meia-entrada. Você pode oferecer mais, nunca

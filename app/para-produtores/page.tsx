@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Check, ShieldCheck, Smartphone, Wallet } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { Button } from '@/components/ui/button'
+import { ResponsibilityTerm } from '@/components/responsibility-term'
 import { producerSignup } from '@/lib/client'
 
 // Landing B2B — segue o tema global (escuro no público), com o mesmo chrome do resto do site.
@@ -136,6 +137,9 @@ function SignupForm() {
         className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm" />
       <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Senha (mín. 8)"
         className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm" />
+      {/* O termo de responsabilidade entra AQUI quando o texto passar pela revisão
+          jurídica. Hoje o componente não renderiza nada — ver components/responsibility-term. */}
+      <ResponsibilityTerm />
       {error && <p className="rounded-lg bg-destructive/10 p-2 text-sm text-destructive">{error}</p>}
       <Button className="w-full" disabled={busy} onClick={submit}>
         {busy ? 'Enviando…' : 'Criar conta'}

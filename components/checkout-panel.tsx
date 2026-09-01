@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Minus, Plus, Ticket, TriangleAlert, BadgePercent } from 'lucide-react'
-import type { PublicConfig, PublicEventDetail } from '@/lib/types'
+import type { PublicConfig, PublicEventDetail, PublicLot } from '@/lib/types'
 import { brl } from '@/lib/format'
 import { createSession, bindSession, paySession, authStarted, fetchOccupancy, fetchBuyerSession, quote, type CheckoutBody, type Breakdown, type Attendee } from '@/lib/client'
 import { SeatMap } from './seat-map'
@@ -28,11 +28,41 @@ const STEPS: { key: Phase; label: string }[] = [
 ]
 
 export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; config: PublicConfig }) {
-  const lots = detail.lots ?? []
   const sectors = detail.sectors ?? []
+
+  // Categoria com link exclusivo: não vem na página (ela não existe publicamente). Quem tem
+  // o endereço traz a chave na URL, e ela é resolvida aqui — sem cache, porque o link pode
+  // ter sido revogado agora.
+  const [hiddenLot, setHiddenLot] = useState<PublicLot | null>(null)
+  const linkToken = useMemo(() => {
+    if (typeof window === 'undefined') return ''
+    return new URLSearchParams(window.location.search).get('k') ?? ''
+  }, [])
+  useEffect(() => {
+    if (!linkToken) return
+    fetch(`/api/events/${detail.event.id}/hidden-lot?k=${encodeURIComponent(linkToken)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d?.lot && setHiddenLot(d.lot))
+      .catch(() => {})
+  }, [detail.event.id, linkToken])
+
+  const lots = useMemo(
+    () => (hiddenLot ? [...(detail.lots ?? []), hiddenLot] : (detail.lots ?? [])),
+    [detail.lots, hiddenLot],
+  )
+  // O que está à venda AGORA. Com tipos simultâneos há mais de um, e a escolha é do
+  // comprador — resolver sempre o primeiro venderia o ingresso errado.
+  const onSale = useMemo(() => lots.filter((l) => l.on_sale !== false), [lots])
+  const [lotId, setLotId] = useState('')
+  useEffect(() => {
+    // O link exclusivo já é a escolha: quem chegou por ele veio comprar aquilo.
+    if (hiddenLot) setLotId(hiddenLot.id)
+    else if (!lotId && detail.current_lot_id) setLotId(detail.current_lot_id)
+  }, [hiddenLot, detail.current_lot_id, lotId])
+
   const currentLot = useMemo(
-    () => lots.find((l) => l.id === detail.current_lot_id) ?? null,
-    [lots, detail.current_lot_id],
+    () => lots.find((l) => l.id === lotId) ?? lots.find((l) => l.id === detail.current_lot_id) ?? null,
+    [lots, lotId, detail.current_lot_id],
   )
   const seated = detail.event.has_seat_map || sectors.some((s) => s.kind !== 'standing' && (s.seats?.length ?? 0) > 0)
 
@@ -130,6 +160,8 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
     }
     const body: CheckoutBody = {
       event_id: detail.event.id,
+      lot_id: currentLot?.id,
+      link_token: linkToken || undefined,
       quantity: qty,
       method,
       half_price_qty: halfQty || undefined,
@@ -144,7 +176,7 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
     }, 300)
     return () => clearTimeout(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [qty, method, halfQty, coupon, seated, detail.event.id, [...selected].join(',')])
+  }, [qty, method, halfQty, coupon, seated, detail.event.id, currentLot?.id, linkToken, [...selected].join(',')])
 
   const couponMsg = !coupon.trim()
     ? null
@@ -185,6 +217,8 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
     setBusy(true)
     const { ok, status, data } = await createSession({
       event_id: detail.event.id,
+      lot_id: currentLot?.id,
+      link_token: linkToken || undefined,
       quantity: qty,
       seat_ids: seated ? [...selected] : undefined,
       half_price_qty: halfQty || undefined,
@@ -432,6 +466,36 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
           </span>
         )}
       </div>
+
+      {/* Escolha do tipo de ingresso. Só aparece quando há mais de um à venda: com um só,
+          escolher não é escolha — é um clique a mais entre a pessoa e a compra. */}
+      {!hiddenLot && onSale.length > 1 && (
+        <div className="mt-3 space-y-2">
+          {onSale.map((l) => (
+            <label key={l.id}
+              className={`flex cursor-pointer items-start gap-2 rounded-lg border p-3 text-sm ${
+                l.id === currentLot?.id ? 'border-primary bg-primary/5' : 'border-border'
+              }`}>
+              <input type="radio" name="tipo-ingresso" className="mt-1" checked={l.id === currentLot?.id}
+                onChange={() => { setLotId(l.id); setQuantity(l.min_purchase_quantity || 1) }} />
+              <span className="flex-1">
+                <span className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="font-medium">{l.name}</span>
+                  <span>{brl(l.price_cents)}</span>
+                </span>
+                {l.notice && <span className="mt-0.5 block text-xs text-muted-foreground">{l.notice}</span>}
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
+
+      {hiddenLot && (
+        <p className="mt-3 rounded-lg border border-primary/40 bg-primary/5 p-3 text-xs">
+          Você chegou por um <strong>link exclusivo</strong>: este ingresso não aparece na
+          página do evento.
+        </p>
+      )}
 
       {seated ? (
         <div className="mt-4">

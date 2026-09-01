@@ -10,10 +10,19 @@ import { RefundPolicyForm } from '@/components/refund-policy-form'
 import { ReceivingAccount } from '@/components/receiving-account'
 import { PayoutPanel } from '@/components/payout-panel'
 import { Button } from '@/components/ui/button'
-import { pget, ppatch, ppost } from '@/lib/producer'
+import { pget, ppatch, ppost, psend } from '@/lib/producer'
 import { brl, formatDateTime } from '@/lib/format'
 
-type Lot = { id: string; name: string; price_cents: number; quantity: number; sold_count: number; held_count: number; sort_order: number; min_purchase_quantity: number; max_purchase_quantity?: number | null; notice?: string | null }
+type Lot = {
+  id: string; name: string; price_cents: number; quantity: number; sold_count: number
+  held_count: number; sort_order: number; min_purchase_quantity: number
+  max_purchase_quantity?: number | null; notice?: string | null
+  hidden: boolean; availability: string; turn_trigger: string
+}
+type LotLink = {
+  id: string; lot_id: string; token: string; label?: string | null
+  max_uses?: number | null; used_count: number; expires_at?: string | null; active: boolean
+}
 type Sector = { id: string; name: string; kind: string }
 type Ev = {
   id: string; title: string; status: string; starts_at?: string; has_seat_map: boolean
@@ -119,12 +128,26 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
+/**
+ * Tipos de ingresso do evento.
+ *
+ * Um evento tem três formas de vender, e elas convivem: a FILA (lote 1 vira lote 2), os
+ * SIMULTÂNEOS (pista e camarote abertos juntos) e a categoria AVULSA. A escolha é por
+ * categoria, não pelo evento inteiro.
+ *
+ * "+ Adicionar" e "Salvar" são botões diferentes, de propósito: o produtor usava adicionar
+ * como se fosse salvar, e perdia a edição.
+ */
 function Lots({ eventId, lots, onChange }: { eventId: string; lots: Lot[]; onChange: () => void }) {
-  const [f, setF] = useState({ name: '', price: '', quantity: '', min: '1', max: '', notice: '' })
+  const [f, setF] = useState({
+    name: '', price: '', quantity: '', min: '1', max: '', notice: '',
+    availability: 'sequential', turn_trigger: 'either',
+  })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const minQ = parseInt(f.min) || 1
   const maxQ = f.max.trim() === '' ? null : parseInt(f.max) || 0
+
   async function add() {
     setBusy(true)
     setError('')
@@ -133,76 +156,321 @@ function Lots({ eventId, lots, onChange }: { eventId: string; lots: Lot[]; onCha
       quantity: parseInt(f.quantity) || 0, sort_order: lots.length,
       min_purchase_quantity: minQ, max_purchase_quantity: maxQ,
       notice: f.notice.trim() || null,
+      availability: f.availability, turn_trigger: f.turn_trigger,
     })
     setBusy(false)
     if (!res.ok) {
-      setError(res.data?.error ?? 'não foi possível criar o lote')
+      setError(res.data?.error ?? 'não foi possível criar o ingresso')
       return
     }
-    setF({ name: '', price: '', quantity: '', min: '1', max: '', notice: '' })
+    setF({ name: '', price: '', quantity: '', min: '1', max: '', notice: '', availability: 'sequential', turn_trigger: 'either' })
     onChange()
   }
-  return (
-    <Section title="Lotes">
-      <div className="space-y-2">
-        {lots.map((l) => (
-          <div key={l.id} className="flex items-center justify-between rounded-lg border border-border bg-card p-3 text-sm">
-            <span className="font-medium">{l.name}</span>
-            <span className="text-muted-foreground">
-              {brl(l.price_cents)} · {l.sold_count}/{l.quantity} vendidos
-              {l.min_purchase_quantity > 1 && <> · {comboLabel(l.min_purchase_quantity, l.max_purchase_quantity)}</>}
-              {l.notice && <span className="mt-0.5 block text-xs">“{l.notice}”</span>}
-            </span>
-          </div>
-        ))}
-      </div>
-      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-[1fr_auto_auto_auto]">
-        <input placeholder="Nome (ex.: 1º lote)" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className={inp} />
-        <input placeholder="Preço R$" inputMode="decimal" value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} className={inp} />
-        <input placeholder="Qtd" inputMode="numeric" value={f.quantity} onChange={(e) => setF({ ...f, quantity: e.target.value })} className={inp} />
-        <Button size="sm" disabled={busy || !f.name} onClick={add}><Plus className="size-4" /> Lote</Button>
-      </div>
 
-      <div className="mt-3 rounded-lg border border-border bg-card p-3">
-        <p className="text-sm font-medium">Quantidade por compra</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Deixe 1 para venda avulsa. Mínimo e máximo iguais a 2 é o ingresso duplo — e o
-          mesmo vale para trio ou grupo.
-        </p>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <label className="text-xs text-muted-foreground">
-            Mín.
-            <input inputMode="numeric" value={f.min} onChange={(e) => setF({ ...f, min: e.target.value })}
-              className={`${inp} ml-1 w-16`} />
-          </label>
-          <label className="text-xs text-muted-foreground">
-            Máx.
-            <input inputMode="numeric" placeholder="—" value={f.max} onChange={(e) => setF({ ...f, max: e.target.value })}
-              className={`${inp} ml-1 w-16`} />
-          </label>
-          <Button size="sm" variant="outline" onClick={() => setF({ ...f, min: '2', max: '2' })}>
-            Ingresso duplo
-          </Button>
-        </div>
-        {minQ > 1 && (
-          <p className="mt-2 rounded-lg bg-background p-2 text-xs">
-            O preço informado é <strong>por ingresso</strong>. Quem comprar {minQ} vai pagar{' '}
-            <strong>{brl(Math.round((parseFloat(f.price.replace(',', '.')) || 0) * 100) * minQ)}</strong>.
+  return (
+    <Section title="Tipos de ingresso">
+      <div className="space-y-2">
+        {lots.map((l) => <LotRow key={l.id} lot={l} eventId={eventId} onChange={onChange} />)}
+        {lots.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            Nenhum tipo de ingresso ainda. Crie o primeiro abaixo.
           </p>
         )}
-        {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
       </div>
 
-      <div className="mt-3">
-        <label className="text-xs text-muted-foreground" htmlFor="lot-notice">
-          Aviso desta categoria (opcional) — aparece na página de venda e no e-mail do ingresso
-        </label>
-        <input id="lot-notice" maxLength={280} value={f.notice}
-          onChange={(e) => setF({ ...f, notice: e.target.value })}
-          placeholder="Ex.: acomodações por ordem de chegada"
-          className={`${inp} mt-1 w-full`} />
+      <div className="mt-4 rounded-xl border border-border bg-card p-3">
+        <p className="text-sm font-medium">Criar ingresso</p>
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <input placeholder="Nome (ex.: Pista, 1º lote)" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className={`${inp} col-span-2 sm:col-span-1`} />
+          <input placeholder="Preço R$" inputMode="decimal" value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} className={inp} />
+          <input placeholder="Quantidade" inputMode="numeric" value={f.quantity} onChange={(e) => setF({ ...f, quantity: e.target.value })} className={inp} />
+        </div>
+
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <label className="block text-xs text-muted-foreground">
+            Como este ingresso é vendido
+            <select value={f.availability} onChange={(e) => setF({ ...f, availability: e.target.value })}
+              className={`${inp} mt-1`}>
+              <option value="sequential">Em fila — abre quando o anterior encerra</option>
+              <option value="always">Sozinho — vendido junto com os outros</option>
+            </select>
+          </label>
+          {f.availability === 'sequential' && (
+            <label className="block text-xs text-muted-foreground">
+              O que encerra este lote
+              <select value={f.turn_trigger} onChange={(e) => setF({ ...f, turn_trigger: e.target.value })}
+                className={`${inp} mt-1`}>
+                <option value="either">O que vier primeiro: esgotar ou a data</option>
+                <option value="sellout">Só quando esgotar</option>
+                <option value="date">Só na data — esgotar não adianta a virada</option>
+              </select>
+            </label>
+          )}
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Em fila é o lote clássico: um por vez. Sozinho é o que convive — pista e camarote
+          abertos ao mesmo tempo, ou uma categoria que não entra em fila nenhuma.
+        </p>
+
+        <div className="mt-3 rounded-lg border border-border bg-background p-3">
+          <p className="text-sm font-medium">Quantidade por compra</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Deixe 1 para venda avulsa. Mínimo e máximo iguais a 2 é o ingresso duplo — e o
+            mesmo vale para trio ou grupo.
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <label className="text-xs text-muted-foreground">
+              Mín.
+              <input inputMode="numeric" value={f.min} onChange={(e) => setF({ ...f, min: e.target.value })}
+                className={`${inp} ml-1 w-16`} />
+            </label>
+            <label className="text-xs text-muted-foreground">
+              Máx.
+              <input inputMode="numeric" placeholder="—" value={f.max} onChange={(e) => setF({ ...f, max: e.target.value })}
+                className={`${inp} ml-1 w-16`} />
+            </label>
+            <Button size="sm" variant="outline" onClick={() => setF({ ...f, min: '2', max: '2' })}>
+              Ingresso duplo
+            </Button>
+          </div>
+          {minQ > 1 && (
+            <p className="mt-2 rounded-lg bg-card p-2 text-xs">
+              O preço informado é <strong>por ingresso</strong>. Quem comprar {minQ} vai pagar{' '}
+              <strong>{brl(Math.round((parseFloat(f.price.replace(',', '.')) || 0) * 100) * minQ)}</strong>.
+            </p>
+          )}
+        </div>
+
+        <div className="mt-3">
+          <label className="text-xs text-muted-foreground" htmlFor="lot-notice">
+            Aviso desta categoria (opcional) — aparece na página de venda e no e-mail do ingresso
+          </label>
+          <input id="lot-notice" maxLength={280} value={f.notice}
+            onChange={(e) => setF({ ...f, notice: e.target.value })}
+            placeholder="Ex.: acomodações por ordem de chegada"
+            className={`${inp} mt-1 w-full`} />
+        </div>
+
+        {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+        <Button className="mt-3" disabled={busy || !f.name} onClick={add}>
+          <Plus className="size-4" /> Criar ingresso
+        </Button>
       </div>
     </Section>
+  )
+}
+
+const MODO_LABEL: Record<string, string> = {
+  sequential: 'em fila',
+  always: 'vendido sozinho',
+}
+const GATILHO_LABEL: Record<string, string> = {
+  either: 'encerra ao esgotar ou na data',
+  sellout: 'encerra só ao esgotar',
+  date: 'encerra só na data',
+}
+
+/**
+ * Uma categoria de ingresso, editável no lugar.
+ *
+ * Editar abre um formulário com botão de SALVAR próprio, e sair com alteração não salva
+ * avisa: adicionar e salvar deixaram de ser o mesmo botão.
+ */
+function LotRow({ lot, eventId, onChange }: { lot: Lot; eventId: string; onChange: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [f, setF] = useState({
+    name: lot.name,
+    price: (lot.price_cents / 100).toFixed(2),
+    quantity: String(lot.quantity),
+    notice: lot.notice ?? '',
+    availability: lot.availability,
+    turn_trigger: lot.turn_trigger,
+  })
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  const sujo =
+    f.name !== lot.name ||
+    f.price !== (lot.price_cents / 100).toFixed(2) ||
+    f.quantity !== String(lot.quantity) ||
+    f.notice !== (lot.notice ?? '') ||
+    f.availability !== lot.availability ||
+    f.turn_trigger !== lot.turn_trigger
+
+  // Sair com alteração não salva avisa. É o mesmo motivo do botão separado: o trabalho de
+  // remontar preço e quantidade não pode se perder num clique fora.
+  useEffect(() => {
+    if (!sujo) return
+    const avisar = (e: BeforeUnloadEvent) => e.preventDefault()
+    window.addEventListener('beforeunload', avisar)
+    return () => window.removeEventListener('beforeunload', avisar)
+  }, [sujo])
+
+  async function salvar() {
+    setBusy(true)
+    setMsg('')
+    const r = await ppatch(`lots/${lot.id}`, {
+      name: f.name,
+      price_cents: Math.round(parseFloat(f.price.replace(',', '.')) * 100) || 0,
+      quantity: parseInt(f.quantity) || 0,
+      notice: f.notice.trim(),
+      availability: f.availability,
+      turn_trigger: f.turn_trigger,
+    })
+    setBusy(false)
+    if (!r.ok) return setMsg(r.data?.error ?? 'Não foi possível salvar.')
+    setMsg('Salvo.')
+    onChange()
+  }
+
+  function fechar() {
+    if (sujo && !window.confirm('Você tem alterações não salvas neste ingresso. Descartar?')) return
+    setF({
+      name: lot.name, price: (lot.price_cents / 100).toFixed(2), quantity: String(lot.quantity),
+      notice: lot.notice ?? '', availability: lot.availability, turn_trigger: lot.turn_trigger,
+    })
+    setOpen(false)
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-3 text-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className="font-medium">
+          {lot.name}
+          {lot.hidden && <span className="ml-2 text-xs text-muted-foreground">· só por link</span>}
+        </span>
+        <span className="text-muted-foreground">
+          {brl(lot.price_cents)} · {lot.sold_count}/{lot.quantity} vendidos
+          {lot.min_purchase_quantity > 1 && <> · {comboLabel(lot.min_purchase_quantity, lot.max_purchase_quantity)}</>}
+        </span>
+      </div>
+      <p className="mt-0.5 text-xs text-muted-foreground">
+        {MODO_LABEL[lot.availability] ?? lot.availability}
+        {lot.availability === 'sequential' && <> · {GATILHO_LABEL[lot.turn_trigger] ?? lot.turn_trigger}</>}
+        {lot.notice && <span className="mt-0.5 block">“{lot.notice}”</span>}
+      </p>
+      <button className="mt-1 text-xs text-muted-foreground underline"
+        onClick={() => (open ? fechar() : setOpen(true))}>
+        {open ? 'fechar' : 'editar'}
+      </button>
+
+      {open && (
+        <div className="mt-3 space-y-2 border-t border-border pt-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className={`${inp} col-span-2 sm:col-span-1`} />
+            <input inputMode="decimal" value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} className={inp} />
+            <input inputMode="numeric" value={f.quantity} onChange={(e) => setF({ ...f, quantity: e.target.value })} className={inp} />
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <select value={f.availability} onChange={(e) => setF({ ...f, availability: e.target.value })} className={inp}>
+              <option value="sequential">Em fila</option>
+              <option value="always">Vendido sozinho</option>
+            </select>
+            {f.availability === 'sequential' && (
+              <select value={f.turn_trigger} onChange={(e) => setF({ ...f, turn_trigger: e.target.value })} className={inp}>
+                <option value="either">Encerra ao esgotar ou na data</option>
+                <option value="sellout">Encerra só ao esgotar</option>
+                <option value="date">Encerra só na data</option>
+              </select>
+            )}
+          </div>
+          <input maxLength={280} value={f.notice} onChange={(e) => setF({ ...f, notice: e.target.value })}
+            placeholder="Aviso desta categoria (opcional)" className={inp} />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" onClick={salvar} disabled={busy || !sujo}>
+              {busy ? 'Salvando…' : 'Salvar'}
+            </Button>
+            {sujo && <span className="text-xs text-signal">alterações não salvas</span>}
+            {msg && <span className="text-xs text-muted-foreground">{msg}</span>}
+          </div>
+          <LotLinks lot={lot} eventId={eventId} onChange={onChange} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Links exclusivos de uma categoria.
+ *
+ * Criar o link ESCONDE a categoria da página pública — link privado para algo que já aparece
+ * na página não é privado. O token é mostrado inteiro uma vez e fica disponível para copiar:
+ * ele é a chave, e quem tem o link entra.
+ */
+function LotLinks({ lot, eventId, onChange }: { lot: Lot; eventId: string; onChange: () => void }) {
+  const [links, setLinks] = useState<LotLink[]>([])
+  const [f, setF] = useState({ label: '', max_uses: '', expires_at: '' })
+  const [busy, setBusy] = useState(false)
+
+  const load = useCallback(() => {
+    pget(`events/${eventId}/lot-links`).then((r) => {
+      if (!r.ok) return
+      setLinks((r.data.links ?? []).filter((l: LotLink) => l.lot_id === lot.id))
+    })
+  }, [eventId, lot.id])
+  useEffect(load, [load])
+
+  async function criar() {
+    setBusy(true)
+    const r = await ppost(`lots/${lot.id}/links`, {
+      label: f.label || undefined,
+      max_uses: f.max_uses ? parseInt(f.max_uses) : null,
+      expires_at: f.expires_at ? new Date(f.expires_at).toISOString() : null,
+    })
+    setBusy(false)
+    if (!r.ok) return window.alert(r.data?.error ?? 'Não foi possível criar o link.')
+    setF({ label: '', max_uses: '', expires_at: '' })
+    load()
+    onChange()
+  }
+
+  async function revogar(id: string) {
+    if (!window.confirm('Revogar este link? Quem já o tem deixa de conseguir comprar, na hora.')) return
+    await ppost(`lot-links/${id}/revoke`)
+    load()
+  }
+
+  const url = (t: string) =>
+    `${typeof window === 'undefined' ? '' : window.location.origin}/eventos/${eventId}?k=${t}`
+
+  return (
+    <div className="rounded-lg border border-border bg-background p-3">
+      <p className="text-sm font-medium">Link exclusivo</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Criar um link tira esta categoria da página pública: ela passa a existir só para quem
+        tem o endereço. Revogar desliga na hora.
+      </p>
+
+      <ul className="mt-2 space-y-1">
+        {links.map((l) => (
+          <li key={l.id} className="rounded-lg border border-border bg-card p-2 text-xs">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <span className="font-medium">{l.label || 'sem apelido'}</span>
+              <span className={l.active ? 'text-muted-foreground' : 'text-signal'}>
+                {l.active ? 'ativo' : 'encerrado'} · {l.used_count}
+                {l.max_uses ? `/${l.max_uses}` : ''} usos
+              </span>
+            </div>
+            <code className="mt-1 block break-all text-[10px] text-muted-foreground">{url(l.token)}</code>
+            <div className="mt-1 flex gap-3">
+              <button className="underline" onClick={() => navigator.clipboard?.writeText(url(l.token))}>copiar</button>
+              {l.active && <button className="text-signal underline" onClick={() => revogar(l.id)}>revogar</button>}
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <input placeholder="Apelido" value={f.label} onChange={(e) => setF({ ...f, label: e.target.value })} className={inp} />
+        <input placeholder="Limite de usos" inputMode="numeric" value={f.max_uses}
+          onChange={(e) => setF({ ...f, max_uses: e.target.value })} className={inp} />
+        <input type="datetime-local" value={f.expires_at}
+          onChange={(e) => setF({ ...f, expires_at: e.target.value })} className={inp} />
+      </div>
+      <Button size="sm" variant="outline" className="mt-2" onClick={criar} disabled={busy}>
+        Gerar link
+      </Button>
+    </div>
   )
 }
 
@@ -311,7 +579,9 @@ type Commitment = {
  * a categoria em que foi contada, senão o atestado de um evento passado muda sozinho.
  */
 function Courtesies({ eventId, lots }: { eventId: string; lots: Lot[] }) {
-  const [name, setName] = useState('')
+  const [g, setG] = useState({ name: '', email: '', phone: '' })
+  const [lista, setLista] = useState('')
+  const [emLote, setEmLote] = useState(false)
   const [lotId, setLotId] = useState('')
   const [catId, setCatId] = useState('')
   const [cats, setCats] = useState<Cat[]>([])
@@ -337,10 +607,49 @@ function Courtesies({ eventId, lots }: { eventId: string; lots: Lot[] }) {
   async function give() {
     if (!catId) return setMsg('Escolha a categoria — é por ela que a cortesia é contada.')
     const r = await ppost(`events/${eventId}/guests`, {
-      name, lot_id: lotId || lots[0]?.id, courtesy_category_id: catId,
+      name: g.name, email: g.email.trim() || undefined, phone: g.phone.trim() || undefined,
+      lot_id: lotId || lots[0]?.id, courtesy_category_id: catId,
     })
-    setMsg(r.ok ? 'Cortesia emitida.' : r.data?.error || 'Falhou.')
-    if (r.ok) { setName(''); load() }
+    setMsg(
+      r.ok
+        ? g.email
+          ? `Cortesia emitida e enviada para ${g.email}.`
+          : 'Cortesia emitida. Sem e-mail, a entrega fica por sua conta.'
+        : r.data?.error || 'Falhou.',
+    )
+    if (r.ok) { setG({ name: '', email: '', phone: '' }); load() }
+  }
+
+  /**
+   * Emissão em lote por lista.
+   *
+   * Uma pessoa por linha, "Nome, e-mail". Cada linha é emitida por si: numa lista de cem, um
+   * assento ocupado ou um nome vazio não pode derrubar as noventa e nove que deram certo — e
+   * o resultado volta linha a linha.
+   */
+  async function giveBatch() {
+    if (!catId) return setMsg('Escolha a categoria — é por ela que a cortesia é contada.')
+    const guests = lista
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((l) => {
+        const [nome, email, tel] = l.split(',').map((x) => x.trim())
+        return { name: nome ?? '', email: email ?? '', phone: tel ?? '' }
+      })
+    if (guests.length === 0) return setMsg('Cole a lista, uma pessoa por linha.')
+    const r = await ppost(`events/${eventId}/guests/batch`, {
+      courtesy_category_id: catId, lot_id: lotId || lots[0]?.id, guests,
+    })
+    if (!r.ok) return setMsg(r.data?.error || 'Falhou.')
+    const falhas = (r.data.results ?? []).filter((x: { error?: string }) => x.error)
+    setMsg(
+      falhas.length === 0
+        ? `${r.data.issued} cortesias emitidas.`
+        : `${r.data.issued} emitidas; ${falhas.length} não: ` +
+          falhas.map((x: { name: string; error: string }) => `${x.name || '(sem nome)'} — ${x.error}`).join('; '),
+    )
+    if (r.data.issued > 0) { setLista(''); load() }
   }
 
   async function criarCategoria() {
@@ -376,17 +685,52 @@ function Courtesies({ eventId, lots }: { eventId: string; lots: Lot[] }) {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <input placeholder="Nome do convidado" value={name} onChange={(e) => setName(e.target.value)} className={`${inp} flex-1`} />
-        <select value={catId} onChange={(e) => setCatId(e.target.value)} className={inp}>
-          <option value="">Categoria…</option>
-          {ativas.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-        <select value={lotId} onChange={(e) => setLotId(e.target.value)} className={inp}>
-          <option value="">Lote…</option>
-          {lots.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-        </select>
-        <Button size="sm" disabled={!name} onClick={give}>Emitir</Button>
+      <div className="rounded-xl border border-border bg-card p-3">
+        <div className="mb-2 flex gap-3 text-sm">
+          <button className={!emLote ? 'font-medium' : 'text-muted-foreground'} onClick={() => setEmLote(false)}>
+            Uma pessoa
+          </button>
+          <button className={emLote ? 'font-medium' : 'text-muted-foreground'} onClick={() => setEmLote(true)}>
+            Lista
+          </button>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          <select value={catId} onChange={(e) => setCatId(e.target.value)} className={inp}>
+            <option value="">Categoria da cortesia…</option>
+            {ativas.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <select value={lotId} onChange={(e) => setLotId(e.target.value)} className={inp}>
+            <option value="">Tipo de ingresso…</option>
+            {lots.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+        </div>
+
+        {!emLote ? (
+          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+            <input placeholder="Nome de quem recebe" value={g.name}
+              onChange={(e) => setG({ ...g, name: e.target.value })} className={inp} />
+            <input placeholder="E-mail" type="email" value={g.email}
+              onChange={(e) => setG({ ...g, email: e.target.value })} className={inp} />
+            <input placeholder="Telefone (opcional)" value={g.phone}
+              onChange={(e) => setG({ ...g, phone: e.target.value })} className={inp} />
+          </div>
+        ) : (
+          <textarea rows={5} value={lista} onChange={(e) => setLista(e.target.value)}
+            placeholder={'Uma pessoa por linha:\nAna Silva, ana@email.com\nJoão Souza, joao@email.com, 31999998888'}
+            className="mt-2 w-full rounded-lg border border-border bg-background p-3 text-sm" />
+        )}
+
+        <p className="mt-2 text-xs text-muted-foreground">
+          Com e-mail, a pessoa recebe o ingresso na hora — e o aviso diz que foi você que
+          enviou. Sem e-mail, o ingresso é emitido e a entrega fica por sua conta.
+        </p>
+
+        <Button size="sm" className="mt-2"
+          disabled={emLote ? !lista.trim() : !g.name}
+          onClick={emLote ? giveBatch : give}>
+          {emLote ? 'Emitir lista' : 'Emitir cortesia'}
+        </Button>
       </div>
       {msg && <p className="mt-2 text-sm text-muted-foreground">{msg}</p>}
 
@@ -945,54 +1289,69 @@ function Coupons({ eventId }: { eventId: string }) {
 }
 
 /**
- * Cota de meia-entrada.
+ * Meia-entrada: quanto está reservado, quanto saiu, e quem escolheu.
  *
- * Os 40% da Lei 12.933/2013 valem por conta própria, mesmo sem o produtor declarar nada — e
- * desde que a cota passou a barrar a venda, ele precisava de um lugar para ver quanto resta
- * e para oferecer MAIS, que é o único lado que a lei permite mexer.
+ * Os 40% da Lei 12.933/2013 são o DEFAULT, não uma trava. A obrigação legal é do produtor —
+ * recusar a configuração dele não o faz cumprir a lei, só o impede de operar. Então a tela
+ * mostra a regra, avisa quando a escolha fica abaixo dela, e a escolha vai para a trilha com
+ * valor, data e usuário.
  *
  * O número aqui é o mesmo que a página de venda publica, porque o art. 1º, §1º obriga a
  * informar a disponibilidade de meia em todos os pontos de venda.
  */
 function HalfPriceQuota({ eventId }: { eventId: string }) {
-  const [hp, setHp] = useState<{ quota: number; granted: number; remaining: number } | null>(null)
-  const [declarado, setDeclarado] = useState('')
+  const [hp, setHp] = useState<{
+    quota: number; granted: number; remaining: number
+    below_legal?: boolean; legal_quota?: number; mode?: string
+  } | null>(null)
+  const [modo, setModo] = useState('quota')
   const [pct, setPct] = useState('40')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  const [aviso, setAviso] = useState('')
 
   const load = useCallback(() => {
     // A cota vigente vem do mesmo lugar que o painel já consulta para as vendas — é o número
     // que a página pública publica, não uma segunda conta.
-    pget(`dash/events/${eventId}`).then((r) => r.ok && setHp(r.data.half_price ?? null))
+    pget(`dash/events/${eventId}`).then((r) => {
+      if (!r.ok) return
+      const h = r.data.half_price ?? null
+      setHp(h)
+      if (h?.mode) setModo(h.mode)
+    })
     pget(`events/${eventId}/commitments`).then((r) => {
       if (!r.ok) return
       const c = (r.data.commitments ?? []).find(
         (x: { kind: string }) => x.kind === 'meia_entrada_cota',
       ) as { target_type: string; target_value: string } | undefined
-      setDeclarado(c ? `${c.target_value}${c.target_type === 'percent' ? '%' : ''}` : '')
       if (c?.target_type === 'percent') setPct(String(parseFloat(c.target_value)))
     })
   }, [eventId])
   useEffect(load, [load])
 
-  async function declarar() {
+  async function salvar(novoModo: string) {
     const n = parseFloat(pct.replace(',', '.'))
     setMsg('')
-    if (!n || n < 40) return setMsg('A cota não pode ser menor que 40% — é o piso da lei.')
+    setAviso('')
+    if (novoModo === 'quota' && (!n || n <= 0)) return setMsg('Informe um percentual maior que zero.')
     setBusy(true)
-    const r = await ppost(`events/${eventId}/commitments`, {
-      kind: 'meia_entrada_cota', target_type: 'percent', target_value: String(n),
-    })
+    const r = await psend('PUT', `events/${eventId}/half-price`,
+      novoModo === 'linked'
+        ? { mode: 'linked' }
+        : { mode: 'quota', target_type: 'percent', target_value: String(n) })
     setBusy(false)
-    if (!r.ok) return setMsg(r.data?.error ?? 'Não foi possível declarar.')
-    setMsg('Cota declarada.')
+    if (!r.ok) return setMsg(r.data?.error ?? 'Não foi possível salvar.')
+    setModo(novoModo)
+    setMsg('Salvo.')
+    setAviso(r.data?.warning ?? '')
     load()
   }
 
+  const vinculada = modo === 'linked'
+
   return (
     <Section title="Meia-entrada">
-      {hp && (
+      {hp && !vinculada && (
         <>
           <p className="text-sm">
             <strong>{hp.remaining}</strong> de {hp.quota} meias ainda disponíveis
@@ -1017,20 +1376,63 @@ function HalfPriceQuota({ eventId }: { eventId: string }) {
           </div>
         </>
       )}
-      <p className="mt-1 text-xs text-muted-foreground">
-        A lei garante 40% dos ingressos para meia-entrada. Você pode oferecer mais, nunca
-        menos — e o número acima aparece na página de venda, como a lei exige.
-        {declarado && <> Cota declarada por você: <strong>{declarado}</strong>.</>}
-      </p>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <input inputMode="decimal" value={pct} onChange={(e) => setPct(e.target.value)}
-          className={`${inp} w-24`} />
-        <span className="text-sm text-muted-foreground">% dos ingressos</span>
-        <Button size="sm" variant="outline" onClick={declarar} disabled={busy}>
-          Declarar cota
-        </Button>
-        {msg && <span className="text-sm text-muted-foreground">{msg}</span>}
+      {vinculada && (
+        <p className="text-sm">
+          A meia está <strong>vinculada à inteira</strong>: sai enquanto houver ingresso, sem cota
+          própria. {hp?.granted ? `${hp.granted} já emitidas.` : ''}
+        </p>
+      )}
+
+      {hp?.below_legal && (
+        <p className="mt-3 rounded-lg border border-signal/40 bg-signal/10 p-3 text-sm text-signal">
+          Esta cota está <strong>abaixo dos 40%</strong> que a Lei 12.933/2013 exige
+          {typeof hp.legal_quota === 'number' && <> (seriam {hp.legal_quota} ingressos)</>}. O
+          cumprimento da lei é responsabilidade do produtor — a escolha e quem a fez ficaram
+          registradas.
+        </p>
+      )}
+
+      <div className="mt-4 space-y-2">
+        <label className="flex items-start gap-2 text-sm">
+          <input type="radio" className="mt-1" checked={!vinculada} onChange={() => setModo('quota')} />
+          <span>
+            Reservar uma cota para meia
+            <span className="block text-xs text-muted-foreground">
+              A lei pede 40% dos ingressos. Você pode definir outro número.
+            </span>
+          </span>
+        </label>
+        {!vinculada && (
+          <div className="ml-6 flex flex-wrap items-center gap-2">
+            <input inputMode="decimal" value={pct} onChange={(e) => setPct(e.target.value)}
+              className={`${inp} w-24`} />
+            <span className="text-sm text-muted-foreground">% dos ingressos</span>
+            <Button size="sm" variant="outline" onClick={() => salvar('quota')} disabled={busy}>
+              Salvar cota
+            </Button>
+          </div>
+        )}
+
+        <label className="flex items-start gap-2 text-sm">
+          <input type="radio" className="mt-1" checked={vinculada} onChange={() => setModo('linked')} />
+          <span>
+            Vincular a meia à inteira
+            <span className="block text-xs text-muted-foreground">
+              Sem cota própria: a meia sai enquanto houver ingresso, consumindo o mesmo estoque.
+            </span>
+          </span>
+        </label>
+        {vinculada && (
+          <div className="ml-6">
+            <Button size="sm" variant="outline" onClick={() => salvar('linked')} disabled={busy}>
+              Salvar vínculo
+            </Button>
+          </div>
+        )}
       </div>
+
+      {aviso && <p className="mt-3 text-sm text-signal">{aviso}</p>}
+      {msg && <p className="mt-2 text-sm text-muted-foreground">{msg}</p>}
     </Section>
   )
 }

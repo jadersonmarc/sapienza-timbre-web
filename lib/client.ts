@@ -6,6 +6,8 @@
 
 export type CheckoutBody = {
   event_id: string
+  lot_id?: string
+  link_token?: string
   quantity: number
   seat_ids?: string[]
   half_price_qty?: number
@@ -34,6 +36,11 @@ export async function startCheckout(body: CheckoutBody) {
 // ── checkout (sessão: a conta é exigida no momento de pagar) ───────────────
 export type SessionSelection = {
   event_id: string
+  // lot_id é a ESCOLHA do tipo de ingresso. Vazio = o vigente, que é o caminho de quem
+  // entra num evento com um tipo só.
+  lot_id?: string
+  // link_token abre a categoria oculta. Sem ele ela não existe para quem pede.
+  link_token?: string
   quantity: number
   seat_ids?: string[]
   half_price_qty?: number

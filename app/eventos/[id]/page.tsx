@@ -44,7 +44,7 @@ export default async function EventoPage({ params }: { params: Params }) {
     description: e.description ? plainText(e.description) : undefined,
     image: e.cover_url ? [e.cover_url] : undefined,
     location: e.address
-      ? { '@type': 'Place', name: e.city ?? e.address, address: e.address }
+      ? { '@type': 'Place', name: e.venue_name ?? e.city ?? e.address, address: e.address }
       : undefined,
   }
 
@@ -84,7 +84,7 @@ export default async function EventoPage({ params }: { params: Params }) {
               {(e.city || e.address) && (
                 <p className="flex items-center gap-2">
                   <MapPin className="size-4 text-primary" />
-                  {[e.address, e.city].filter(Boolean).join(' — ')}
+                  {[e.venue_name, e.address, e.city].filter(Boolean).join(' — ')}
                 </p>
               )}
               {e.age_rating && (

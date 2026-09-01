@@ -26,6 +26,9 @@ export type PublicLot = {
   // Aviso do produtor para ESTA categoria. Já vem sanitizado do servidor; ainda assim é
   // renderizado como TEXTO — nunca dangerouslySetInnerHTML.
   notice?: string | null
+  // OnSale diz se ESTE tipo pode ser comprado agora. Com tipos simultâneos não há um
+  // vigente só, e a tela precisa distinguir "à venda" de "ainda vai abrir".
+  on_sale?: boolean
 }
 
 export type PublicSeat = {
@@ -60,6 +63,8 @@ export type PublicEvent = {
   cover_url?: string
   starts_at?: string
   ends_at?: string
+  // venue_name é o nome do lugar — é ele que o comprador reconhece, não o CEP.
+  venue_name?: string
   address?: string
   city?: string
   lat?: number
@@ -81,7 +86,11 @@ export type PublicEventDetail = {
   sectors: PublicSector[]
   // Cota de meia-entrada. A Lei 12.933/2013, art. 1º, §1º obriga a informar a
   // disponibilidade de meia em todos os pontos de venda.
-  half_price: { available: boolean; quota: number; granted: number; remaining: number }
+  half_price: {
+    available: boolean; quota: number; granted: number; remaining: number
+    // 'quota' = cota própria; 'linked' = a meia segue o estoque do tipo pai, sem limite.
+    mode?: string
+  }
 }
 
 export type PublicConfig = {

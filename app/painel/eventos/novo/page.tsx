@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { ProducerNav } from '@/components/producer-nav'
 import { RichEditor } from '@/components/rich-editor'
+import { VenueField, type Venue } from '@/components/venue-field'
 import { Button } from '@/components/ui/button'
 import { pget, ppost, uploadCover } from '@/lib/producer'
 import { categoryName } from '@/lib/format'
@@ -15,8 +16,9 @@ export default function NovoEventoPage() {
   const [cats, setCats] = useState<{ slug: string }[]>([])
   const [f, setF] = useState({
     title: '', subtitle: '', description: '', category: '', starts_at: '',
-    city: '', address: '', age_rating: '', terms: '', cover_url: '', has_seat_map: false,
+    age_rating: '', terms: '', cover_url: '', has_seat_map: false,
   })
+  const [local, setLocal] = useState<Venue>({ venue_name: '', address: '', city: '' })
   const [coverFile, setCoverFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -43,8 +45,12 @@ export default function NovoEventoPage() {
       starts_at: new Date(f.starts_at).toISOString(),
       subtitle: f.subtitle || undefined,
       description: f.description || undefined,
-      city: f.city || undefined,
-      address: f.address || undefined,
+      venue_name: local.venue_name || undefined,
+      place_id: local.place_id || undefined,
+      city: local.city || undefined,
+      address: local.address || undefined,
+      lat: local.lat ?? undefined,
+      lng: local.lng ?? undefined,
       age_rating: f.age_rating || undefined,
       terms: f.terms || undefined,
       cover_url: f.cover_url || undefined,
@@ -68,11 +74,14 @@ export default function NovoEventoPage() {
           <ChevronLeft className="size-4" /> Voltar
         </Link>
         <h1 className="font-display text-2xl font-bold">Novo evento</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          O que estiver aqui é o que o comprador lê antes de decidir. Dá para ajustar tudo depois.
+        </p>
         <div className="mt-6 space-y-3">
           <Field label="Título"><input value={f.title} onChange={(e) => set('title', e.target.value)} className={inp} /></Field>
           <Field label="Subtítulo (opcional)">
             <input value={f.subtitle} maxLength={160} onChange={(e) => set('subtitle', e.target.value)}
-              placeholder="Ex.: turnê de despedida · com participação especial" className={inp} />
+              placeholder="Uma linha curta: turnê de despedida, com participação especial" className={inp} />
           </Field>
           <Field label="Categoria">
             <select value={f.category} onChange={(e) => set('category', e.target.value)} className={inp}>
@@ -80,22 +89,18 @@ export default function NovoEventoPage() {
               {cats.map((c) => <option key={c.slug} value={c.slug}>{categoryName(c.slug)}</option>)}
             </select>
           </Field>
-          <Field label="Data e hora de início"><input type="datetime-local" value={f.starts_at} onChange={(e) => set('starts_at', e.target.value)} className={inp} /></Field>
-          <Field label="Cidade"><input value={f.city} onChange={(e) => set('city', e.target.value)} className={inp} /></Field>
-          <Field label="Endereço (opcional)">
-            <input value={f.address} onChange={(e) => set('address', e.target.value)}
-              placeholder="Rua, número, bairro" className={inp} />
-          </Field>
+          <Field label="Quando começa"><input type="datetime-local" value={f.starts_at} onChange={(e) => set('starts_at', e.target.value)} className={inp} /></Field>
+          <VenueField value={local} onChange={setLocal} />
           <Field label="Classificação etária (opcional)">
             <input value={f.age_rating} onChange={(e) => set('age_rating', e.target.value)}
               placeholder="Ex.: 14 anos · Livre" className={inp} />
           </Field>
 
-          <Field label="Sobre o evento">
+          <Field label="Descreva o seu evento">
             <RichEditor value={f.description} onChange={(v) => set('description', v)}
-              placeholder={'Conte o que a pessoa vai ver.\n\nAbertura da casa às 19:00 — show às 20:00.\n\n- Acomodações por ordem de chegada'} />
+              placeholder={'Conte o que a pessoa vai ver, quem se apresenta e como é a noite.\n\nAbertura da casa às 19:00 — show às 20:00.\n\n- Acomodações por ordem de chegada'} />
           </Field>
-          <Field label="Informações importantes (opcional)">
+          <Field label="O que o público precisa saber antes de comprar (opcional)">
             <RichEditor value={f.terms} onChange={(v) => set('terms', v)} rows={5} maxLength={2000}
               placeholder={'- Não é permitida a entrada de crianças de colo\n- Não precisa imprimir o ingresso'} />
           </Field>
@@ -104,12 +109,12 @@ export default function NovoEventoPage() {
               onChange={(e) => setCoverFile(e.target.files?.[0] ?? null)} className={`${inp} h-auto py-2 file:mr-3 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5`} />
             {coverFile && <span className="mt-1 block text-xs text-muted-foreground">{coverFile.name}</span>}
           </Field>
-          <Field label="…ou cole uma URL de imagem (opcional)">
+          <Field label="…ou cole o link de uma imagem">
             <input value={f.cover_url} onChange={(e) => set('cover_url', e.target.value)} placeholder="https://… (link direto da imagem)" className={inp} />
           </Field>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={f.has_seat_map} onChange={(e) => set('has_seat_map', e.target.checked)} />
-            Evento com mapa de assentos (marcados)
+            Este evento tem lugares marcados
           </label>
           {error && <p className="rounded-lg bg-destructive/10 p-2 text-sm text-destructive">{error}</p>}
           <Button size="lg" className="w-full" disabled={busy} onClick={submit}>{busy ? 'Criando…' : 'Criar evento'}</Button>

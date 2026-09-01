@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Search, ShieldAlert } from 'lucide-react'
 import { ProducerNav } from '@/components/producer-nav'
@@ -61,13 +62,17 @@ const TRACK: Record<string, string> = {
 export default function DevolucoesPage() {
   const router = useRouter()
   const [requests, setRequests] = useState<Req[] | null>(null)
-  const [debt, setDebt] = useState<number>(0)
+  const [aAcertar, setAAcertar] = useState<number>(0)
 
   const load = useCallback(async () => {
     const [q, p] = await Promise.all([pget('refund-requests'), pget('dash/payouts')])
     if (q.status === 401) return router.replace('/painel/entrar')
     setRequests(q.data.requests ?? [])
-    setDebt(p.data?.debt_cents ?? 0)
+    // Valores a acertar são a EXCEÇÃO: devolução que chegou depois de o repasse do evento
+    // ter sido pago. Não existe mais saldo devedor de rotina — o dinheiro fica com a
+    // bilheteria até depois do evento, então a devolução comum não tira nada de ninguém.
+    const creditos: { amount_cents: number }[] = p.data?.recoverable_credits ?? []
+    setAAcertar(creditos.reduce((soma, c) => soma + c.amount_cents, 0))
   }, [router])
 
   useEffect(() => {
@@ -86,14 +91,18 @@ export default function DevolucoesPage() {
           Pedidos que dependem de você, e a busca das vendas.
         </p>
 
-        {debt > 0 && (
-          <div className="mt-5 flex gap-3 rounded-xl border border-destructive/40 bg-destructive/5 p-4">
-            <ShieldAlert className="size-5 shrink-0 text-destructive" />
+        {aAcertar > 0 && (
+          <div className="mt-5 flex gap-3 rounded-xl border border-signal/40 bg-signal/5 p-4">
+            <ShieldAlert className="size-5 shrink-0 text-signal" />
             <div className="text-sm">
-              <p className="font-medium">Saldo devedor de {brl(debt)}</p>
+              <p className="font-medium">{brl(aAcertar)} a acertar</p>
               <p className="mt-1 text-muted-foreground">
-                Devoluções que a plataforma pagou ao comprador quando sua conta de recebimento
-                não tinha saldo. O valor é descontado dos próximos repasses.
+                Devoluções que aconteceram depois de o repasse do evento ter sido pago. Nada é
+                descontado sozinho de repasses futuros —{' '}
+                <Link href="/painel/repasses" className="underline">
+                  veja no extrato
+                </Link>
+                .
               </p>
             </div>
           </div>

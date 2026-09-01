@@ -16,10 +16,8 @@ const KEY_TYPES = [
 // Para onde vai o dinheiro do produtor. Enquanto isso não estiver preenchido ele monta
 // eventos mas não publica — e é melhor descobrir aqui do que no clique de publicar.
 //
-// Pedimos só a chave Pix: a venda entra na plataforma e a parte dele é transferida depois,
-// pelo valor que o razão já calcula. O caminho de conta própria no gateway (divisão
-// automática na venda) continua no backend e entra quando fizer sentido — cobrar abertura
-// de conta de quem ainda vai fazer o primeiro evento afugenta antes de provar o produto.
+// É só a chave Pix, e é tudo: a bilheteria recebe o valor das vendas e transfere a parte do
+// produtor depois que o evento acontece. Ele não abre conta em gateway nenhum.
 export function ReceivingAccount({ onConfigured }: { onConfigured?: () => void }) {
   const [status, setStatus] = useState<{
     configured: boolean
@@ -70,13 +68,9 @@ export function ReceivingAccount({ onConfigured }: { onConfigured?: () => void }
       <div className="mb-6 rounded-xl border border-border bg-card p-4">
         <p className="flex items-center gap-2 text-sm">
           <CheckCircle2 className="size-4 text-primary" />
-          {status.mode === 'split' ? (
-            <>Recebimento direto configurado.</>
-          ) : (
-            <>
-              Repasse por Pix para <span className="font-medium text-foreground">{status.pix_key}</span>
-            </>
-          )}
+          <>
+            Repasse por Pix para <span className="font-medium text-foreground">{status.pix_key}</span>
+          </>
           <button className="ml-auto text-xs text-muted-foreground underline" onClick={() => setOpen(true)}>
             alterar
           </button>
@@ -93,7 +87,7 @@ export function ReceivingAccount({ onConfigured }: { onConfigured?: () => void }
         </p>
         <p className="mt-1 text-sm text-muted-foreground">
           Você pode montar seus eventos agora, mas para publicá-los precisamos da sua chave Pix — é
-          para ela que transferimos a sua parte das vendas.
+          para ela que transferimos a sua parte, alguns dias depois de cada evento acontecer.
         </p>
         <Button className="mt-3" onClick={() => setOpen(true)}>
           <Wallet className="size-4" /> Informar chave Pix

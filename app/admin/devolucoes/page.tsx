@@ -35,11 +35,12 @@ type FailedJob = {
   last_error: string
 }
 
-type Debtor = {
+type Credit = {
   producer_id: string
   producer_name: string
-  debt_cents: number
-  debt_alert: boolean
+  event_title: string
+  order_id: string
+  amount_cents: number
 }
 
 /**
@@ -54,14 +55,11 @@ export default function AdminDevolucoesPage() {
   const [q, setQ] = useState('')
   const [sales, setSales] = useState<Sale[] | null>(null)
   const [busy, setBusy] = useState(false)
-  const [debtors, setDebtors] = useState<Debtor[]>([])
+  const [credits, setCredits] = useState<Credit[]>([])
   const [failed, setFailed] = useState<FailedJob[]>([])
 
   const loadQueues = useCallback(() => {
-    aget('payouts').then((r) => {
-      const list: Debtor[] = (r.data?.producers ?? []).filter((p: Debtor) => (p.debt_cents ?? 0) > 0)
-      setDebtors(list)
-    })
+    aget('payouts').then((r) => setCredits(r.data?.recoverable_credits ?? []))
     aget('refund-jobs/failed').then((r) => setFailed(r.data?.failed ?? []))
   }, [])
 
@@ -87,26 +85,25 @@ export default function AdminDevolucoesPage() {
           Busca em todas as casas, e o que só a plataforma pode decidir.
         </p>
 
-        {debtors.length > 0 && (
+        {credits.length > 0 && (
           <section className="mt-6">
-            <h2 className="font-display text-lg font-semibold">Produtores devendo</h2>
+            <h2 className="font-display text-lg font-semibold">Créditos a recuperar</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Devoluções que a plataforma pagou ao comprador porque a conta do produtor não
-              tinha saldo. Sai dos próximos repasses; acima do limiar, vira cobrança.
+              Devoluções que chegaram <strong>depois</strong> de o repasse do evento ter sido pago —
+              o único caso em que o produtor fica devendo. Nada é abatido sozinho: a cobrança é
+              conversa, não desconto silencioso no evento seguinte.
             </p>
             <ul className="mt-3 space-y-2">
-              {debtors.map((d) => (
+              {credits.map((c) => (
                 <li
-                  key={d.producer_id}
+                  key={c.order_id}
                   className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3"
                 >
                   <span className="flex items-center gap-2 text-sm">
-                    {d.debt_alert && <ShieldAlert className="size-4 text-destructive" />}
-                    {d.producer_name}
+                    <ShieldAlert className="size-4 text-destructive" />
+                    {c.producer_name} · {c.event_title}
                   </span>
-                  <span className={d.debt_alert ? 'font-medium text-destructive' : 'text-sm'}>
-                    {brl(d.debt_cents)}
-                  </span>
+                  <span className="text-sm font-medium">{brl(c.amount_cents)}</span>
                 </li>
               ))}
             </ul>

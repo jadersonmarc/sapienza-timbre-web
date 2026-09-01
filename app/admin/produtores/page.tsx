@@ -6,7 +6,7 @@ import { AdminNav } from '@/components/admin-nav'
 import { Button } from '@/components/ui/button'
 import { aget, apost } from '@/lib/admin'
 
-type Producer = { id: string; name: string; tier: string; status: string; created_at: string }
+type Producer = { id: string; name: string; status: string; created_at: string }
 
 const STATUS: Record<string, string> = { active: 'Ativo', pending: 'Pendente', suspended: 'Suspenso' }
 
@@ -40,7 +40,7 @@ export default function ProdutoresPage() {
             <div key={p.id} className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3">
               <div>
                 <p className="font-medium">{p.name}</p>
-                <p className="text-sm text-muted-foreground">Nível {p.tier} · desde {new Date(p.created_at).toLocaleDateString('pt-BR')}</p>
+                <p className="text-sm text-muted-foreground">Desde {new Date(p.created_at).toLocaleDateString('pt-BR')}</p>
               </div>
               <div className="flex items-center gap-3">
                 <span className="rounded-full bg-secondary px-3 py-1 text-xs">{STATUS[p.status] ?? p.status}</span>

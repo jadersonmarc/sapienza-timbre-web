@@ -8,6 +8,7 @@ import { ProducerNav } from '@/components/producer-nav'
 import { RichEditor } from '@/components/rich-editor'
 import { RefundPolicyForm } from '@/components/refund-policy-form'
 import { ReceivingAccount } from '@/components/receiving-account'
+import { PayoutPanel } from '@/components/payout-panel'
 import { Button } from '@/components/ui/button'
 import { pget, ppatch, ppost } from '@/lib/producer'
 import { brl, formatDateTime } from '@/lib/format'
@@ -453,6 +454,12 @@ function Sales({ eventId }: { eventId: string }) {
           <div className="rounded-xl border border-border bg-card p-4"><p className="text-xs text-muted-foreground">Devolvido</p><p className="mt-1 font-display text-xl font-bold text-destructive">{brl(Math.abs(fin.estorno_cents ?? 0))}</p></div>
         )}
       </div>
+      {d.payout && (
+        <div className="mt-4">
+          <p className="mb-2 text-sm font-medium">Seu repasse</p>
+          <PayoutPanel p={d.payout} />
+        </div>
+      )}
       {funnel && (
         <p className="mt-3 rounded-lg bg-secondary p-3 text-sm text-muted-foreground">
           Sessões vinculadas: <span className="font-medium text-foreground">{funnel.bound}</span> · pagas:{' '}

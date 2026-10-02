@@ -3,14 +3,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { MapPin, Pencil, Search } from 'lucide-react'
 
-export type Venue = {
-  venue_name: string
-  address: string
-  city: string
-  place_id?: string
-  lat?: number | null
-  lng?: number | null
-}
+import { editarNaMao, type Venue } from '@/lib/venue'
+
+export type { Venue }
 
 /**
  * Local do evento: por busca, ou na mão.
@@ -82,13 +77,13 @@ export function VenueField({ value, onChange }: { value: Venue; onChange: (v: Ve
     return (
       <div className="space-y-3">
         <Campo label="Nome do local" value={value.venue_name}
-          onChange={(v) => onChange({ ...value, venue_name: v })}
+          onChange={(v) => onChange(editarNaMao(value, { venue_name: v }))}
           placeholder="Ex.: Circo Voador" />
         <Campo label="Endereço" value={value.address}
-          onChange={(v) => onChange({ ...value, address: v })}
+          onChange={(v) => onChange(editarNaMao(value, { address: v }))}
           placeholder="Rua, número, bairro" />
         <Campo label="Cidade" value={value.city}
-          onChange={(v) => onChange({ ...value, city: v })} />
+          onChange={(v) => onChange(editarNaMao(value, { city: v }))} />
         <button type="button" onClick={() => setManual(false)}
           className="flex items-center gap-1.5 text-xs text-muted-foreground underline">
           <Search className="size-3.5" /> Voltar a buscar pelo nome

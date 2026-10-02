@@ -63,7 +63,7 @@ export default async function HomePage() {
           <DoorCard href="/para-produtores" icon={<Mic2 className="size-5" />} title="Sou artista" desc="Venda os ingressos dos seus próprios shows." />
         </section>
 
-        {/* Diferenciais do ingresso (honesto: assinatura offline + transferência/revenda) */}
+        {/* Diferenciais do ingresso (honesto: só o que está ligado — ver lib/features) */}
         <TrustSection />
 
         {catalogError && (

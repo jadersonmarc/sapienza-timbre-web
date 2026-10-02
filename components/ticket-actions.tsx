@@ -4,9 +4,10 @@ import { useState } from 'react'
 import { Send, Tag, RefreshCw } from 'lucide-react'
 import { Button } from './ui/button'
 import { transferTicket, sellTicket, reissueTicket } from '@/lib/client'
+import { RESALE_ENABLED } from '@/lib/features'
 
 // Ações de posse (Onda 2, custódia de plataforma): transferir (presente) e vender (mercado
-// secundário). O que depende de rede fica fora — aqui é tudo on-platform.
+// secundário, desligado no lançamento — ver lib/features). O que depende de rede fica fora.
 export function TicketActions({ ticketId, onChanged }: { ticketId: string; onChanged: () => void }) {
   const [open, setOpen] = useState<'none' | 'transfer' | 'sell'>('none')
   const [email, setEmail] = useState('')
@@ -58,9 +59,11 @@ export function TicketActions({ ticketId, onChanged }: { ticketId: string; onCha
         <button onClick={() => setOpen(open === 'transfer' ? 'none' : 'transfer')} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border py-2 text-sm">
           <Send className="size-4" /> Transferir
         </button>
-        <button onClick={() => setOpen(open === 'sell' ? 'none' : 'sell')} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border py-2 text-sm">
-          <Tag className="size-4" /> Vender
-        </button>
+        {RESALE_ENABLED && (
+          <button onClick={() => setOpen(open === 'sell' ? 'none' : 'sell')} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border py-2 text-sm">
+            <Tag className="size-4" /> Vender
+          </button>
+        )}
       </div>
 
       {open === 'transfer' && (
@@ -73,7 +76,7 @@ export function TicketActions({ ticketId, onChanged }: { ticketId: string; onCha
         </div>
       )}
 
-      {open === 'sell' && (
+      {RESALE_ENABLED && open === 'sell' && (
         <div className="mt-3 space-y-2">
           <input inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Preço (R$)"
             className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm" />

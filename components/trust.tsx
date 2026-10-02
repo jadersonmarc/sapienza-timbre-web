@@ -1,4 +1,5 @@
-import { Fingerprint, ArrowLeftRight, BadgePercent } from 'lucide-react'
+import { Fingerprint, ArrowLeftRight, BadgePercent, Undo2 } from 'lucide-react'
+import { RESALE_ENABLED } from '@/lib/features'
 
 // Apresentação HONESTA dos diferenciais do ingresso: só o que está de fato
 // implementado (assinatura Ed25519 verificável offline + transferência/revenda com
@@ -15,11 +16,19 @@ const ITEMS = [
     title: 'Transferência com rastro',
     desc: 'Repasse o ingresso para amigos com procedência rastreável — a posse fica clara do início ao fim.',
   },
-  {
-    icon: BadgePercent,
-    title: 'Revenda justa',
-    desc: 'Revenda com teto de preço e royalty automático para o produtor. Sem cambista, sem surpresa.',
-  },
+  // Só anuncia o que está ligado: com a revenda fora do lançamento, prometê-la na home
+  // seria exatamente a alegação que este bloco existe para não fazer.
+  RESALE_ENABLED
+    ? {
+        icon: BadgePercent,
+        title: 'Revenda justa',
+        desc: 'Revenda com teto de preço e royalty automático para o produtor. Sem cambista, sem surpresa.',
+      }
+    : {
+        icon: Undo2,
+        title: 'Devolução sem surpresa',
+        desc: 'A regra de devolução de cada evento aparece antes da compra, e o pedido é feito direto pela sua conta.',
+      },
 ]
 
 // TrustSection é o bloco "Por que Timbre?" da home.

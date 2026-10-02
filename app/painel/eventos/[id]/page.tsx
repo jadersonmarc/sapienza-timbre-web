@@ -27,6 +27,7 @@ type Sector = { id: string; name: string; kind: string }
 type Ev = {
   id: string; title: string; status: string; starts_at?: string; has_seat_map: boolean
   subtitle?: string; description?: string; terms?: string; age_rating?: string; address?: string
+  show_availability?: boolean
 }
 
 const inp = 'h-10 w-full rounded-lg border border-border bg-card px-3 text-sm'
@@ -109,6 +110,7 @@ export default function EventoPainelPage({ params }: { params: Promise<{ id: str
         </Section>
         <Courtesies eventId={id} lots={lots} />
         <EventText eventId={id} ev={ev} onSaved={load} />
+        <AvailabilityToggle eventId={id} ev={ev} onSaved={load} />
         {ev.status === 'cancelled' && <CancellationProgress eventId={id} />}
         <Sales eventId={id} />
         <Exportar eventId={id} />
@@ -1178,6 +1180,48 @@ function EventText({ eventId, ev, onSaved }: { eventId: string; ev: Ev; onSaved:
           {msg && <span className="text-sm text-muted-foreground">{msg}</span>}
         </div>
       </div>
+    </Section>
+  )
+}
+
+/**
+ * Mostrar ou não, na página de venda, quantos ingressos restam em cada tipo.
+ *
+ * Desligado por padrão: o ritmo de venda é informação do produtor, e quem decide divulgá-la
+ * é ele. Desligado, a página diz só "à venda" ou "esgotado" — e o número nem sai da API. A
+ * disponibilidade de meia-entrada aparece sempre, porque a lei manda.
+ */
+function AvailabilityToggle({ eventId, ev, onSaved }: { eventId: string; ev: Ev; onSaved: () => void }) {
+  const [on, setOn] = useState(!!ev.show_availability)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  async function toggle(next: boolean) {
+    setBusy(true)
+    setMsg('')
+    const r = await ppatch(`events/${eventId}`, { show_availability: next })
+    setBusy(false)
+    if (r.ok) {
+      setOn(next)
+      onSaved()
+    } else setMsg(r.data?.error ?? 'Não foi possível salvar.')
+  }
+
+  return (
+    <Section title="Página de venda">
+      <label className="flex items-start gap-3">
+        <input type="checkbox" checked={on} disabled={busy}
+          onChange={(e) => toggle(e.target.checked)} className="mt-1 size-4" />
+        <span>
+          <span className="block text-sm font-medium">Mostrar a quantidade disponível</span>
+          <span className="block text-sm text-muted-foreground">
+            {on
+              ? 'O comprador vê quantos ingressos restam em cada tipo.'
+              : 'O comprador vê só se o ingresso está à venda ou esgotado. A disponibilidade de meia-entrada aparece sempre, como a lei exige.'}
+          </span>
+        </span>
+      </label>
+      {msg && <p className="mt-2 text-sm text-destructive">{msg}</p>}
     </Section>
   )
 }

@@ -15,7 +15,11 @@ export type PublicLot = {
   id: string
   name: string
   price_cents: number
-  available: number
+  // Quantidade restante: só vem quando o produtor escolheu mostrar (show_availability).
+  // Ausente é o padrão — a página não inventa número nem deduz de outro campo.
+  available?: number
+  // Esgotado vem sempre, com ou sem o número.
+  sold_out?: boolean
   starts_at?: string
   ends_at?: string
   sort_order: number

@@ -187,14 +187,17 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
         : { tone: 'error' as const, text: 'Cupom inválido ou expirado.' }
   const quoteError = quoteState === 'error' && !coupon.trim()
 
-  const soldOut = !currentLot || (currentLot?.available ?? 0) <= 0
-  const available = currentLot?.available ?? 0
+  // A quantidade restante só existe quando o produtor escolheu mostrar; o esgotado vem
+  // sempre. Sem o número, o teto do seletor é a faixa por compra e o servidor recusa o que
+  // não couber.
+  const available = currentLot?.available
+  const soldOut = !currentLot || !!currentLot.sold_out || (available !== undefined && available <= 0)
 
   // O lote pode virar (por data ou esgotamento) com a tela aberta: a quantidade acompanha
   // a faixa do lote vigente em vez de ficar num valor que o servidor vai recusar.
   useEffect(() => {
     setQuantity((q) => {
-      const teto = Math.min(maxQty ?? Infinity, available || Infinity)
+      const teto = Math.min(maxQty ?? Infinity, available ?? Infinity)
       return Math.max(minQty, Math.min(Math.max(q, minQty), teto))
     })
   }, [minQty, maxQty, available])
@@ -230,6 +233,12 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
         setError('Um dos assentos acabou de ser ocupado. Atualizamos o mapa — escolha outro.')
         setSelected(new Set())
         fetchOccupancy(detail.event.id).then(setOccupied)
+      } else if (status === 409) {
+        // Sem a quantidade na página, pedir mais do que existe é o caminho normal de
+        // descobrir o limite — a mensagem diz o que fazer, sem revelar o número.
+        setError(data?.error === 'lote indisponível'
+          ? 'Este ingresso saiu de venda. Atualize a página para ver o que segue disponível.'
+          : 'Não há ingressos suficientes para essa quantidade. Tente uma quantidade menor.')
       } else {
         setError('Não foi possível reservar agora. Tente novamente.')
       }
@@ -462,7 +471,8 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
         <p className="font-display text-lg font-semibold">Ingressos</p>
         {currentLot && (
           <span className="text-xs text-muted-foreground">
-            {currentLot.name} · {available} disponíveis
+            {currentLot.name}
+            {available !== undefined && ` · ${available} disponíveis`}
           </span>
         )}
       </div>
@@ -518,7 +528,7 @@ export function CheckoutPanel({ detail, config }: { detail: PublicEventDetail; c
               <Minus className="size-4" />
             </button>
             <span className="w-6 text-center font-medium">{quantity}</span>
-            <button aria-label="Aumentar" disabled={maxQty !== undefined && quantity >= maxQty} onClick={() => setQuantity((q) => Math.min(Math.min(maxQty ?? available, available), q + 1))} className="flex size-9 items-center justify-center rounded-md border border-border disabled:opacity-40">
+            <button aria-label="Aumentar" disabled={maxQty !== undefined && quantity >= maxQty} onClick={() => setQuantity((q) => Math.min(maxQty ?? Infinity, available ?? Infinity, q + 1))} className="flex size-9 items-center justify-center rounded-md border border-border disabled:opacity-40">
               <Plus className="size-4" />
             </button>
           </div>

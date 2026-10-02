@@ -18,6 +18,15 @@ import { NextRequest, NextResponse } from 'next/server'
  * cadastro no Google precisa funcionar.
  */
 
+/**
+ * GET diz só se a busca existe neste ambiente. Não fala com o Google e não custa nada: é o
+ * que deixa o campo abrir direto na digitação manual quando a chave não está configurada,
+ * em vez de descobrir isso no meio da digitação do produtor.
+ */
+export function GET() {
+  return NextResponse.json({ configured: !!process.env.GOOGLE_MAPS_API_KEY })
+}
+
 const AUTOCOMPLETE = 'https://places.googleapis.com/v1/places:autocomplete'
 const DETAILS = 'https://places.googleapis.com/v1/places/'
 

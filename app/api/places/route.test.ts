@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
-import { POST } from './route'
+import { GET, POST } from './route'
 
 // B.8.1: a busca de local preenche o endereço e guarda o place_id; sem chave, cai para o
 // manual. O Google é simulado — o que se testa é o nosso contrato com a tela.
@@ -27,6 +27,12 @@ afterEach(() => {
 })
 
 describe('sem chave configurada', () => {
+  it('GET avisa que a busca não existe, sem chamar o Google — o campo abre no manual', async () => {
+    vi.stubEnv('GOOGLE_MAPS_API_KEY', '')
+    expect(await GET().json()).toEqual({ configured: false })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('responde configured:false e não chama o Google', async () => {
     vi.stubEnv('GOOGLE_MAPS_API_KEY', '')
     const res = await POST(req({ input: 'Circo Voador', sessionToken: 's1' }))
@@ -38,6 +44,11 @@ describe('sem chave configurada', () => {
 
 describe('com chave configurada', () => {
   beforeEach(() => vi.stubEnv('GOOGLE_MAPS_API_KEY', 'chave-de-teste'))
+
+  it('GET avisa que a busca existe, sem gastar uma chamada', async () => {
+    expect(await GET().json()).toEqual({ configured: true })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
 
   it('autocompleta com o token de sessão e a chave só no cabeçalho', async () => {
     fetchMock.mockResolvedValueOnce(Response.json({

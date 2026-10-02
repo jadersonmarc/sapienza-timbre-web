@@ -24,7 +24,22 @@ export function VenueField({ value, onChange }: { value: Venue; onChange: (v: Ve
   const [manual, setManual] = useState(!!value.address && !value.place_id)
   const [indisponivel, setIndisponivel] = useState(false)
   const [buscando, setBuscando] = useState(false)
+  // Busca de local é OPCIONAL (é paga). Sem chave no servidor o campo é só manual, e o
+  // lançamento não depende dela.
+  const [semBusca, setSemBusca] = useState(false)
   const sessao = useRef('')
+
+  useEffect(() => {
+    fetch('/api/places')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.configured === false) {
+          setSemBusca(true)
+          setManual(true)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   // Token de sessão do autocompletar: nasce no foco, morre na escolha. É ele que junta as
   // digitações numa cobrança só.
@@ -50,6 +65,9 @@ export function VenueField({ value, onChange }: { value: Venue; onChange: (v: Ve
       // Sem chave configurada, a busca simplesmente não existe: o campo vira manual e a
       // tela não quebra.
       if (data.configured === false) {
+        // O que já foi digitado é o nome do local: não pode sumir na troca de modo.
+        onChange(editarNaMao(value, { venue_name: q }))
+        setSemBusca(true)
         setManual(true)
         return
       }
@@ -84,10 +102,12 @@ export function VenueField({ value, onChange }: { value: Venue; onChange: (v: Ve
           placeholder="Rua, número, bairro" />
         <Campo label="Cidade" value={value.city}
           onChange={(v) => onChange(editarNaMao(value, { city: v }))} />
-        <button type="button" onClick={() => setManual(false)}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground underline">
-          <Search className="size-3.5" /> Voltar a buscar pelo nome
-        </button>
+        {!semBusca && (
+          <button type="button" onClick={() => setManual(false)}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground underline">
+            <Search className="size-3.5" /> Voltar a buscar pelo nome
+          </button>
+        )}
       </div>
     )
   }
